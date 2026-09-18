@@ -12,6 +12,16 @@ neo_migrate.settings:
         legacy:
           type: neo_migrate.preview_themes
           label: 'Legacy themes'
+    coexistence:
+      type: mapping
+      label: 'Which body field each stack renders while both are installed'
+      mapping:
+        tree_field:
+          type: string
+          label: 'The component tree field, hidden in legacy themes'
+        legacy_field:
+          type: string
+          label: 'The legacy body field, hidden in Neo themes'
 
 neo_migrate.preview_themes:
   type: mapping

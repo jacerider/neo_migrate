@@ -1,5 +1,15 @@
 # Changelog
 
+## The component tree field is added beside the legacy body
+
+**`drush neo-migrate:tree-field` adds the field converted content goes
+into**: one `neo_component_tree` field (`field_full` by default) on every
+bundle hosting paragraphs, custom trees allowed, hidden on the edit form and
+rendered wherever the legacy body field is. **While both exist, each stack
+renders only its own**: a view hook hides the tree in the legacy front theme
+and the old body in the Neo front theme, using the field names recorded in
+`neo_migrate.settings`.
+
 ## micon's icon packages can be carried into neo_icon unchanged
 
 **`drush neo-migrate:icons` imports each micon package as a neo_icon

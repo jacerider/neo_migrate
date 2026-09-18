@@ -6,6 +6,8 @@ namespace Drupal\neo_migrate\Drush\Commands;
 
 use Drupal\neo_migrate\Importer\IconImporter;
 use Drupal\neo_migrate\Importer\ToolbarImporter;
+use Drupal\neo_migrate\Importer\TreeFieldInstaller;
+use Drupal\neo_migrate\Source\ParagraphsSource;
 use Drush\Attributes as CLI;
 use Drush\Commands\AutowireTrait;
 use Drush\Commands\DrushCommands;
@@ -26,8 +28,34 @@ final class NeoMigrateConfigCommands extends DrushCommands {
     private readonly ToolbarImporter $toolbarImporter,
     #[Autowire(service: 'neo_migrate.icon_importer')]
     private readonly IconImporter $iconImporter,
+    #[Autowire(service: 'neo_migrate.tree_field_installer')]
+    private readonly TreeFieldInstaller $treeFieldInstaller,
+    #[Autowire(service: 'neo_migrate.source.paragraphs')]
+    private readonly ParagraphsSource $paragraphs,
   ) {
     parent::__construct();
+  }
+
+  /**
+   * Adds the component tree field beside the legacy body. Creates config.
+   *
+   * Without options it covers every host the paragraphs source finds.
+   */
+  #[CLI\Command(name: 'neo-migrate:tree-field', aliases: ['nmtf'])]
+  #[CLI\Option(name: 'field', description: 'Machine name of the component tree field.')]
+  #[CLI\Option(name: 'dry-run', description: 'Report what would happen without saving.')]
+  #[CLI\Usage(name: 'drush neo-migrate:tree-field', description: 'Add field_full wherever paragraphs are hosted.')]
+  public function treeField(array $options = ['field' => 'field_full', 'dry-run' => FALSE]): void {
+    $hosts = $this->paragraphs->hosts();
+    if (!$hosts) {
+      throw new \RuntimeException('The paragraphs source finds no host fields.');
+    }
+    foreach ($hosts as $host) {
+      $report = $this->treeFieldInstaller->install($host['entity_type'], $host['bundles'], $options['field'], $host['field'], (bool) $options['dry-run']);
+      $this->io()->title($host['entity_type'] . ': ' . $options['field'] . ' beside ' . $host['field']);
+      $this->io()->table(['Bundle', 'Field', 'Rendered in'], array_map(static fn ($row) => [$row['bundle'], $row['action'], implode(', ', $row['displays'])], $report));
+    }
+    $this->io()->success($options['dry-run'] ? 'Dry run: nothing saved.' : 'Saved. The legacy theme keeps rendering the old body; export config to keep this.');
   }
 
   /**

@@ -39,6 +39,7 @@ These commands create config (run them locally, then export):
 | Command | Does |
 | --- | --- |
 | `drush neo-migrate:toolbar [--theme=back] [--dry-run]` | Rebuilds escort's items as neo_toolbar items, maps their icons, grants `access neo_toolbar` to roles that had `access escort`, and optionally limits the toolbar to one theme. |
+| `drush neo-migrate:tree-field [--field=field_full] [--dry-run]` | Adds a `neo_component_tree` field beside every paragraphs host field, hidden on the edit form and rendered wherever the legacy body is. While both exist, the legacy theme renders only the old body and the Neo front theme only the tree. |
 | `drush neo-migrate:icons [--global] [--dry-run]` | Imports each micon package as a unique neo_icon library of the same name, so stored names such as `fa-wrench` keep resolving. Not global by default, so the legacy theme is untouched. |
 
 What counts as legacy, and what each piece becomes, is data:
