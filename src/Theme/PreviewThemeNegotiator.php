@@ -22,7 +22,11 @@ use Symfony\Component\HttpFoundation\RequestStack;
  */
 final class PreviewThemeNegotiator implements ThemeNegotiatorInterface {
 
-  public const COOKIE = 'neo_migrate_preview';
+  /**
+   * The cookie name. Pantheon's CDN strips every cookie from requests except
+   * a few prefixes, STYXKEY among them, so any other name never reaches PHP.
+   */
+  public const COOKIE = 'STYXKEY_neo_migrate_preview';
 
   public const MODES = ['neo', 'legacy'];
 

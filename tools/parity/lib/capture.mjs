@@ -146,9 +146,12 @@ export async function startSession(browser, config, target) {
     }
     if (target.preview) {
       await page.goto(`${target.url}/neo-migrate/preview/${target.preview}`, { waitUntil: 'load', timeout: 60000 });
-      const cookies = await context.cookies(target.url);
-      if (!cookies.some((cookie) => cookie.name === 'neo_migrate_preview' && cookie.value === target.preview)) {
-        throw new Error(`The "${target.preview}" preview did not switch on; does the login user have "preview neo migration"?`);
+      // The banner is printed only when Drupal itself sees the preview cookie,
+      // so this proves the cookie survives any CDN in front of the site, not
+      // just that the browser holds it.
+      await page.goto(`${target.url}/`, { waitUntil: 'load', timeout: 60000 });
+      if (!(await page.locator(PREVIEW_BANNER).count())) {
+        throw new Error(`The "${target.preview}" preview did not switch on: no preview banner. Does the login user have "preview neo migration", and does the host pass the preview cookie through?`);
       }
     }
     return await context.storageState();

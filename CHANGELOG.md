@@ -1,5 +1,15 @@
 # Changelog
 
+## The theme preview works on Pantheon
+
+**The preview cookie is now `STYXKEY_neo_migrate_preview`.** Pantheon's CDN
+strips every request cookie except a few prefixes, so `neo_migrate_preview`
+never reached Drupal on a multidev: the preview route set it, the browser kept
+it, and every page still rendered the legacy theme. `STYXKEY` cookies pass
+through and vary the edge cache. **Parity now proves the preview took** by
+finding the preview banner on a page, which Drupal prints only when it sees
+the cookie, instead of checking the browser's cookie jar.
+
 ## Social links keep their legacy icons
 
 **`neo-migrate:site-settings-types` sets each social link's icon** on its

@@ -22,7 +22,7 @@ Neo's modules and themes go in; the public site and the legacy admin keep workin
 
 4. **Build.** `ddev drush neo-install` writes `package.json`, `tsconfig.json`, `vite.config.ts`, a Vite port in `.ddev/config.yaml`, and copies every module's skills into `.claude/skills`. Add the Neo block to `.gitignore` (`/neo.json`, `/tsconfig.neo.json`, `/.stylelintcache`, `!/config/files/*`). Then `ddev exec npm install` and `ddev exec npm run deploy`. npm's "allow-scripts" warning about esbuild's postinstall is harmless: the build works without it.
 
-5. **Preview.** An admin with `preview neo migration` visits `/neo-migrate/preview/neo?destination=/some/page` to see the Neo themes (front on site pages, back on admin pages) while everyone else sees the legacy ones; `/neo-migrate/preview/off` stops it. A banner in the corner says a preview is on. The pair of legacy themes is recorded in `neo_migrate.settings` when neo_migrate is installed.
+5. **Preview.** An admin with `preview neo migration` visits `/neo-migrate/preview/neo?destination=/some/page` to see the Neo themes (front on site pages, back on admin pages) while everyone else sees the legacy ones; `/neo-migrate/preview/off` stops it. A banner in the corner says a preview is on. The pair of legacy themes is recorded in `neo_migrate.settings` when neo_migrate is installed. The cookie is `STYXKEY_neo_migrate_preview`: Pantheon's CDN strips every cookie but a few prefixes (`SESS`, `SSESS`, `NO_CACHE`, `STYXKEY`), so any other name works locally and silently does nothing on a multidev.
 
 6. **Move the admin.** neo_icon requires neo_modal, and neo_modal replaces core's dialog library in every theme: in a legacy admin theme (seven, claro) dialogs open unstyled. escort and the back theme also misrender together. So the admin moves in this phase, while the public site stays legacy until the front cutover:
    ```
@@ -45,7 +45,7 @@ Neo's modules and themes go in; the public site and the legacy admin keep workin
 - Parity: a fresh local capture against `prod-baseline` still passes every section, with no missing words and no head or status differences. The legacy theme's `detect` selector in `parity.yml` must match only the legacy theme — the Neo front theme reuses classes such as `.section.page`. Expected difference: `/user/login` now shows neo_back's login screen.
 - Admin smoke test in the back theme: the toolbar items, node edit forms with the legacy body field, and the webform UI's "Add element" dialog.
 - Public pages as a logged-in editor: no toolbar, the legacy local-task tabs, nothing else changed.
-- The preview works both ways, and the banner shows.
+- The preview works both ways, and the banner shows — on the multidev too, not only locally.
 - `config:status` reports no differences.
 - Deployed to the multidev (push the branch, then `terminus drush <site>.<env> -- updb -y`, `cim -y`, `cr`), with parity against `prod-baseline` repeated on the multidev, and an admin page checked there with aggregation on: `Drupal` is defined, dropbuttons are initialised, a dialog opens.
 - On Pantheon, neo_config_file must be 1.0.31 or later: earlier versions cannot install neo_icon through config import on a read-only codebase, and cannot extract icon or favicon packages where directories cannot be renamed.
