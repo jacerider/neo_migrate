@@ -36,7 +36,9 @@ Neo's modules and themes go in; the public site and the legacy admin keep workin
    - A "same label" note means an escort link and a stock neo_toolbar item share a name. Decide which one editors need now. Example: escort's "Settings" opened the legacy site-settings form that still feeds the public footer, while neo's opens neo_site_settings, which stays empty until phase 2. Disable neo's item until then.
    - A legacy favicon module that maps favicons per theme (real_favicon) needs the back theme added, or admin pages lose the favicon.
 
-7. **Export.** `ddev drush cex -y`, then read the diff. Expected besides the new Neo config: entity_clone registers the new entity types as cloneable, neo_alchemist adds `field_media_file` to existing document and video media types, escort's config disappears, and the roles swap `access escort` for `access neo_toolbar`. Done when `config:status` reports no differences.
+7. **Rebuild.** Modules enabled after the first build (neo_toolbar here) have no compiled assets yet: `ddev drush cr`, then `ddev exec npm run deploy`, then confirm each new module's entrypoints are in both `web/themes/front/dist/manifest.json` and `web/themes/back/dist/manifest.json` (a deploy right after enabling once missed the back scope; `npm run build:back` added it). A library missing from the manifest is served as its raw `src/*.ts`. Locally, unaggregated, only that file fails and nothing looks wrong; with JS aggregation, as on Pantheon, the TypeScript syntax error takes the whole aggregate with it: `Drupal` is undefined, dropbuttons stay raw links, dialogs never open.
+
+8. **Export.** `ddev drush cex -y`, then read the diff. Expected besides the new Neo config: entity_clone registers the new entity types as cloneable, neo_alchemist adds `field_media_file` to existing document and video media types, escort's config disappears, and the roles swap `access escort` for `access neo_toolbar`. Done when `config:status` reports no differences.
 
 ## Gate G1
 
@@ -45,4 +47,6 @@ Neo's modules and themes go in; the public site and the legacy admin keep workin
 - Public pages as a logged-in editor: no toolbar, the legacy local-task tabs, nothing else changed.
 - The preview works both ways, and the banner shows.
 - `config:status` reports no differences.
-- Deployed to the multidev (push the branch, then `terminus drush <site>.<env> -- updb -y`, `cim -y`, `cr`), with parity against `prod-baseline` repeated on the multidev.
+- Deployed to the multidev (push the branch, then `terminus drush <site>.<env> -- updb -y`, `cim -y`, `cr`), with parity against `prod-baseline` repeated on the multidev, and an admin page checked there with aggregation on: `Drupal` is defined, dropbuttons are initialised, a dialog opens.
+- On Pantheon, neo_config_file must be 1.0.31 or later: earlier versions cannot install neo_icon through config import on a read-only codebase, and cannot extract icon or favicon packages where directories cannot be renamed.
+- Remote drush through `terminus drush` drops `ev` code containing spaces or double quotes; build strings with `chr()` when a remote probe is needed.
