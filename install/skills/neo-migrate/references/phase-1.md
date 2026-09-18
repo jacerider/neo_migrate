@@ -24,12 +24,25 @@ Neo's modules and themes go in; the public site and the legacy admin keep workin
 
 5. **Preview.** An admin with `preview neo migration` visits `/neo-migrate/preview/neo?destination=/some/page` to see the Neo themes (front on site pages, back on admin pages) while everyone else sees the legacy ones; `/neo-migrate/preview/off` stops it. A banner in the corner says a preview is on. The pair of legacy themes is recorded in `neo_migrate.settings` when neo_migrate is installed.
 
-6. **Export.** `ddev drush cex -y`, then read the diff. Expected besides the new Neo config: entity_clone registers the new entity types as cloneable, and neo_alchemist adds `field_media_file` to existing document and video media types. Done when `config:status` reports no differences.
+6. **Move the admin.** neo_icon requires neo_modal, and neo_modal replaces core's dialog library in every theme: in a legacy admin theme (seven, claro) dialogs open unstyled. escort and the back theme also misrender together. So the admin moves in this phase, while the public site stays legacy until the front cutover:
+   ```
+   ddev drush pmu escort micon_local_task -y
+   ddev drush en neo_toolbar neo_icon_local_task neo_icon_admin -y
+   ddev drush config:set system.theme admin back -y
+   ddev drush neo-migrate:toolbar --theme=back
+   ```
+   - `neo-migrate:toolbar` rebuilds escort's items as `escort_<id>` toolbar items (links, "manage" links to the filtered content list, "add" as a create item), maps their Font Awesome 4 icons, and grants `access neo_toolbar` to every role that had `access escort`. Once escort is uninstalled it reads both from the sync directory — so run it **before** the next `cex`, which drops escort's config and permission from the sync directory. If an export already happened, `git checkout` the role files and run it again.
+   - `--theme=back` shows the toolbar only in the back theme. neo_toolbar's assets are built for Neo themes only, and over the legacy front theme it renders unstyled; editors on public pages get the legacy theme's own local-task tabs instead. Clear it with `--theme=any` at the front cutover.
+   - A "same label" note means an escort link and a stock neo_toolbar item share a name. Decide which one editors need now. Example: escort's "Settings" opened the legacy site-settings form that still feeds the public footer, while neo's opens neo_site_settings, which stays empty until phase 2. Disable neo's item until then.
+   - A legacy favicon module that maps favicons per theme (real_favicon) needs the back theme added, or admin pages lose the favicon.
+
+7. **Export.** `ddev drush cex -y`, then read the diff. Expected besides the new Neo config: entity_clone registers the new entity types as cloneable, neo_alchemist adds `field_media_file` to existing document and video media types, escort's config disappears, and the roles swap `access escort` for `access neo_toolbar`. Done when `config:status` reports no differences.
 
 ## Gate G1
 
-- Parity: a fresh local capture against `prod-baseline` still passes every section, with no missing words and no head or status differences. The legacy theme's `detect` selector in `parity.yml` must match only the legacy theme — the Neo front theme reuses classes such as `.section.page`.
-- Admin smoke test in the legacy admin theme: node edit forms, the webform UI's "Add element" dialog, and any other dialog editors use.
-  - neo_modal replaces core's dialog library for every theme. In a legacy admin theme the dialogs open but render without neo's styles. Record how the site will handle this as a decision before G1 passes.
+- Parity: a fresh local capture against `prod-baseline` still passes every section, with no missing words and no head or status differences. The legacy theme's `detect` selector in `parity.yml` must match only the legacy theme — the Neo front theme reuses classes such as `.section.page`. Expected difference: `/user/login` now shows neo_back's login screen.
+- Admin smoke test in the back theme: the toolbar items, node edit forms with the legacy body field, and the webform UI's "Add element" dialog.
+- Public pages as a logged-in editor: no toolbar, the legacy local-task tabs, nothing else changed.
 - The preview works both ways, and the banner shows.
 - `config:status` reports no differences.
+- Deployed to the multidev (push the branch, then `terminus drush <site>.<env> -- updb -y`, `cim -y`, `cr`), with parity against `prod-baseline` repeated on the multidev.

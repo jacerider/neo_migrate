@@ -45,6 +45,15 @@ services:
   neo_migrate.audit_markdown:
     class: Drupal\neo_migrate\AuditMarkdown
 
+  # neo_icon is optional: neo_migrate installs before any Neo module.
+  neo_migrate.icon_resolver:
+    class: Drupal\neo_migrate\IconNameResolver
+    arguments: ['@neo_migrate.catalog', '@?neo_icon.repository']
+
+  neo_migrate.toolbar_importer:
+    class: Drupal\neo_migrate\Importer\ToolbarImporter
+    arguments: ['@entity_type.manager', '@config.factory', '@config.storage.sync', '@neo_migrate.icon_resolver', '@neo_migrate.catalog']
+
   # Above the admin and default negotiators, below the AJAX base page one, so
   # an AJAX request keeps the theme of the page that made it.
   neo_migrate.preview_negotiator:

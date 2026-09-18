@@ -137,6 +137,22 @@ escort_plugins:
   node_manage: link
   divider: divider
 
+# Font Awesome 4 names (micon's "fa" package) that neo_icon's Font Awesome 5
+# libraries know by another name. Names not listed are tried as they are, then
+# without an "-o" (outline) suffix.
+icon_aliases:
+  gear: cog
+  gears: cogs
+  close: times
+  remove: times
+  times-circle-o: times-circle
+  trash-o: trash-alt
+  pencil-square-o: edit
+  file-text-o: file-alt
+  sign-out: sign-out-alt
+  external-link: external-link-alt
+  star-half-o: star-half-alt
+
 # Strings searched for in the site's own code (the default theme and any module
 # outside core/contrib) to show how tightly it is coupled to the legacy stack.
 code_patterns:

@@ -1,5 +1,26 @@
 # Changelog
 
+## Escort's toolbar can be rebuilt in neo_toolbar
+
+**`drush neo-migrate:toolbar` turns escort's items into neo_toolbar items.**
+Links stay links; "manage" items become links to the content list filtered by
+their bundle; "add" becomes neo_toolbar's create item for the node types that
+still exist. Items neo_toolbar already ships — the user menu, local tasks and
+actions, the home link — are reported as covered instead of duplicated.
+Created items are named `escort_<id>`, so running it again updates them.
+Escort's right-hand regions land at the end of the rail. Every role that had
+`access escort` gets `access neo_toolbar`. Escort's items and roles are read
+from active config while escort is installed and from the sync directory once
+it is not. `--theme=<theme>` shows the toolbar only on one theme, for the time
+the admin has moved and the public site has not.
+
+**Font Awesome 4 icon names resolve to neo_icon names**: tried as they are,
+through the `icon_aliases` in `neo_migrate.legacy.yml`, then without an "-o"
+suffix.
+
+**The phase 1 reference covers moving the admin first**, because neo_modal
+takes over core's dialogs in every theme.
+
 ## An admin can preview the Neo themes while visitors still see the legacy site
 
 **`/neo-migrate/preview/neo` sets a cookie that serves the Neo themes to one
