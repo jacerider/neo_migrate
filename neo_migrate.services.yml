@@ -58,6 +58,14 @@ services:
     class: Drupal\neo_migrate\Importer\TreeFieldInstaller
     arguments: ['@entity_type.manager', '@entity_display.repository', '@config.factory']
 
+  neo_migrate.site_settings_importer:
+    class: Drupal\neo_migrate\Importer\SiteSettingsImporter
+    arguments: ['@entity_type.manager', '@entity_display.repository', '@config.factory', '@neo_migrate.catalog']
+
+  neo_migrate.icon_field_importer:
+    class: Drupal\neo_migrate\Importer\IconFieldImporter
+    arguments: ['@entity_type.manager', '@entity_display.repository']
+
   neo_migrate.toolbar_importer:
     class: Drupal\neo_migrate\Importer\ToolbarImporter
     arguments: ['@entity_type.manager', '@config.factory', '@config.storage.sync', '@neo_migrate.icon_resolver', '@neo_migrate.catalog']

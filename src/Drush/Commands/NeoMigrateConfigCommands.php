@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Drupal\neo_migrate\Drush\Commands;
 
+use Drupal\neo_migrate\Importer\IconFieldImporter;
 use Drupal\neo_migrate\Importer\IconImporter;
+use Drupal\neo_migrate\Importer\SiteSettingsImporter;
 use Drupal\neo_migrate\Importer\ToolbarImporter;
 use Drupal\neo_migrate\Importer\TreeFieldInstaller;
 use Drupal\neo_migrate\Source\ParagraphsSource;
@@ -32,8 +34,43 @@ final class NeoMigrateConfigCommands extends DrushCommands {
     private readonly TreeFieldInstaller $treeFieldInstaller,
     #[Autowire(service: 'neo_migrate.source.paragraphs')]
     private readonly ParagraphsSource $paragraphs,
+    #[Autowire(service: 'neo_migrate.site_settings_importer')]
+    private readonly SiteSettingsImporter $siteSettingsImporter,
+    #[Autowire(service: 'neo_migrate.icon_field_importer')]
+    private readonly IconFieldImporter $iconFieldImporter,
   ) {
     parent::__construct();
+  }
+
+  /**
+   * Adds a neo_icon twin beside a micon icon field. Creates config.
+   *
+   * The values are content: see neo-migrate:icon-field-values.
+   */
+  #[CLI\Command(name: 'neo-migrate:icon-field', aliases: ['nmif'])]
+  #[CLI\Argument(name: 'field', description: 'The micon field, as <entity type>.<field name>.')]
+  #[CLI\Option(name: 'to', description: 'Machine name of the new neo_icon field.')]
+  #[CLI\Option(name: 'dry-run', description: 'Report what would happen without saving.')]
+  #[CLI\Usage(name: 'drush neo-migrate:icon-field node.field_icon --to=field_service_icon', description: 'Twin the service icon.')]
+  public function iconField(string $field, array $options = ['to' => NULL, 'dry-run' => FALSE]): void {
+    [$entityType, $legacy] = explode('.', $field, 2) + [1 => ''];
+    $to = $options['to'] ?: $legacy . '_neo';
+    $report = $this->iconFieldImporter->ensureField($entityType, $legacy, $to, (bool) $options['dry-run']);
+    $this->io()->table(['Bundle', "$entityType.$to"], array_map(static fn ($row) => [$row['bundle'], $row['action']], $report));
+    $this->io()->success($options['dry-run'] ? 'Dry run: nothing saved.' : 'Saved. Export config, then copy the values on each environment.');
+  }
+
+  /**
+   * Creates the neo_site_settings bundles the legacy values need. Creates config.
+   *
+   * The values themselves are content: see neo-migrate:site-settings.
+   */
+  #[CLI\Command(name: 'neo-migrate:site-settings-types', aliases: ['nmsst'])]
+  #[CLI\Option(name: 'dry-run', description: 'Report what would happen without saving.')]
+  public function siteSettingsTypes(array $options = ['dry-run' => FALSE]): void {
+    $created = $this->siteSettingsImporter->ensureStructure((bool) $options['dry-run']);
+    $this->io()->listing($created ?: ['nothing to create']);
+    $this->io()->success($options['dry-run'] ? 'Dry run: nothing saved.' : 'Saved. Export config to keep it.');
   }
 
   /**

@@ -1,5 +1,23 @@
 # Changelog
 
+## Site settings and icon fields move to neo, in two halves
+
+**Structure is config, values are content.** `neo-migrate:site-settings-types`
+creates the neo_site_settings bundles the legacy values need (an `hours` bundle
+with a field per day) and `neo-migrate:site-settings` copies the values: the
+address lines joined so neo's address tokens parse them, the phone, the social
+links as links, the hours, and the site name. The legacy values sit in config
+excluded from sync, so the copy runs on each environment against its own.
+What maps where is the `site_settings` section of `neo_migrate.legacy.yml`.
+
+**`neo-migrate:icon-field` gives a micon icon field a `neo_icon` twin**, hidden
+on the edit form until the cutover, and `neo-migrate:icon-field-values` copies
+the stored names across. The copy is repeatable, keeps each entity's changed
+time, writes no revision, and stops Pathauto regenerating the alias.
+
+**Content commands have their own class**, `NeoMigrateContentCommands`, apart
+from the commands that create config.
+
 ## The component tree field is added beside the legacy body
 
 **`drush neo-migrate:tree-field` adds the field converted content goes

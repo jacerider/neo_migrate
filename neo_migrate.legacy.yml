@@ -137,6 +137,39 @@ escort_plugins:
   node_manage: link
   divider: divider
 
+# Where the legacy site_settings module's values go in neo_site_settings.
+# Each target is <bundle>.<field>; a list of source keys is joined with new
+# lines (neo_site_settings parses a multi-line address). Bundles listed under
+# `bundles` are created when missing, with plain string fields.
+site_settings:
+  source: site_settings.site
+  map:
+    general.field_address: [address, address2]
+    general.field_phone: phone
+    social.field_facebook: facebook
+    social.field_x: twitter
+    social.field_instagram: instagram
+    social.field_linkedin: linkedin
+    hours.field_monday: monday
+    hours.field_tuesday: tuesday
+    hours.field_wednesday: wednesday
+    hours.field_thursday: thursday
+    hours.field_friday: friday
+    hours.field_saturday: saturday
+    hours.field_sunday: sunday
+  bundles:
+    hours:
+      label: Hours
+      icon: clock
+      fields:
+        field_monday: Monday
+        field_tuesday: Tuesday
+        field_wednesday: Wednesday
+        field_thursday: Thursday
+        field_friday: Friday
+        field_saturday: Saturday
+        field_sunday: Sunday
+
 # Font Awesome 4 names (micon's "fa" package) that neo_icon's Font Awesome 5
 # libraries know by another name. Names not listed are tried as they are, then
 # without an "-o" (outline) suffix.

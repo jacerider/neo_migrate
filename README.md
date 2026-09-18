@@ -40,7 +40,16 @@ These commands create config (run them locally, then export):
 | --- | --- |
 | `drush neo-migrate:toolbar [--theme=back] [--dry-run]` | Rebuilds escort's items as neo_toolbar items, maps their icons, grants `access neo_toolbar` to roles that had `access escort`, and optionally limits the toolbar to one theme. |
 | `drush neo-migrate:tree-field [--field=field_full] [--dry-run]` | Adds a `neo_component_tree` field beside every paragraphs host field, hidden on the edit form and rendered wherever the legacy body is. While both exist, the legacy theme renders only the old body and the Neo front theme only the tree. |
+| `drush neo-migrate:site-settings-types [--dry-run]` | Creates the neo_site_settings bundles the legacy values need (`hours`), from the `site_settings` map in `neo_migrate.legacy.yml`. |
+| `drush neo-migrate:icon-field <type>.<field> --to=<name> [--dry-run]` | Adds a `neo_icon` twin beside a micon icon field, hidden on the form until the cutover. |
 | `drush neo-migrate:icons [--global] [--dry-run]` | Imports each micon package as a unique neo_icon library of the same name, so stored names such as `fa-wrench` keep resolving. Not global by default, so the legacy theme is untouched. |
+
+These commands change content (run them on every environment, after its config is deployed; they are safe to repeat):
+
+| Command | Does |
+| --- | --- |
+| `drush neo-migrate:site-settings [--dry-run]` | Copies this environment's legacy site settings into neo_site_settings. Run again at the cutover to pick up edits made in between. |
+| `drush neo-migrate:icon-field-values <type>.<field> --to=<name> [--dry-run]` | Copies a micon field's values into its twin, keeping each entity's changed time and alias. |
 
 What counts as legacy, and what each piece becomes, is data:
 `neo_migrate.legacy.yml`. Extend it as new sites turn up new modules.
