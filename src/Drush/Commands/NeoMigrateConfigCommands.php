@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\neo_migrate\Drush\Commands;
 
+use Drupal\neo_migrate\Importer\IconImporter;
 use Drupal\neo_migrate\Importer\ToolbarImporter;
 use Drush\Attributes as CLI;
 use Drush\Commands\AutowireTrait;
@@ -23,8 +24,31 @@ final class NeoMigrateConfigCommands extends DrushCommands {
   public function __construct(
     #[Autowire(service: 'neo_migrate.toolbar_importer')]
     private readonly ToolbarImporter $toolbarImporter,
+    #[Autowire(service: 'neo_migrate.icon_importer')]
+    private readonly IconImporter $iconImporter,
   ) {
     parent::__construct();
+  }
+
+  /**
+   * Imports micon's packages as unique neo_icon libraries. Creates config.
+   */
+  #[CLI\Command(name: 'neo-migrate:icons', aliases: ['nmic'])]
+  #[CLI\Option(name: 'global', description: 'Load the libraries on every page. Leave off while the legacy theme still draws micon icons.')]
+  #[CLI\Option(name: 'dry-run', description: 'Report what would happen without saving.')]
+  #[CLI\Usage(name: 'drush neo-migrate:icons', description: 'Import every micon package.')]
+  public function icons(array $options = ['global' => FALSE, 'dry-run' => FALSE]): void {
+    $report = $this->iconImporter->import((bool) $options['global'], (bool) $options['dry-run']);
+    $this->io()->table(
+      ['micon package', 'neo_icon library', 'Action', 'micon icons', 'Note'],
+      array_map(static fn ($row) => [$row['package'], $row['library'], $row['action'], $row['icons'], $row['note']], $report),
+    );
+    if ($options['dry-run']) {
+      $this->io()->note('Dry run: nothing saved.');
+    }
+    else {
+      $this->io()->success('Libraries saved. Export config to keep them (their zips go to config/files).');
+    }
   }
 
   /**

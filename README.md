@@ -34,11 +34,12 @@ otherwise.
 | `drush neo-migrate:urls` | `urls.json`: the public URLs to compare before and after. |
 | `drush neo-migrate:metric` | Appends to `metrics.jsonl`; `--summary` prints totals. |
 
-One command creates config (run it locally, then export):
+These commands create config (run them locally, then export):
 
 | Command | Does |
 | --- | --- |
 | `drush neo-migrate:toolbar [--theme=back] [--dry-run]` | Rebuilds escort's items as neo_toolbar items, maps their icons, grants `access neo_toolbar` to roles that had `access escort`, and optionally limits the toolbar to one theme. |
+| `drush neo-migrate:icons [--global] [--dry-run]` | Imports each micon package as a unique neo_icon library of the same name, so stored names such as `fa-wrench` keep resolving. Not global by default, so the legacy theme is untouched. |
 
 What counts as legacy, and what each piece becomes, is data:
 `neo_migrate.legacy.yml`. Extend it as new sites turn up new modules.

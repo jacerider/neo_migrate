@@ -1,5 +1,18 @@
 # Changelog
 
+## micon's icon packages can be carried into neo_icon unchanged
+
+**`drush neo-migrate:icons` imports each micon package as a neo_icon
+library.** The library takes the package's machine name and is marked
+unique, so its icons are named `<library>-<name>` — the same strings micon
+stored in fields, menus and templates. The package's own IcoMoon zip is
+reused: written to `public://neo-file/<id>.zip`, registered as a config file
+whose parent is the library, and saved, which unpacks it. The libraries are
+not global unless `--global` is given, so they load only where a neo icon
+renders and the legacy theme keeps drawing micon's icons until the cutover.
+A glyph with several names ("close, remove, times") is known to neo_icon only
+by the joined name, so micon's alias selectors for it do not resolve.
+
 ## Escort's toolbar can be rebuilt in neo_toolbar
 
 **`drush neo-migrate:toolbar` turns escort's items into neo_toolbar items.**
