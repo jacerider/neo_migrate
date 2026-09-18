@@ -44,3 +44,12 @@ services:
 
   neo_migrate.audit_markdown:
     class: Drupal\neo_migrate\AuditMarkdown
+
+  # Above the admin and default negotiators, below the AJAX base page one, so
+  # an AJAX request keeps the theme of the page that made it.
+  neo_migrate.preview_negotiator:
+    class: Drupal\neo_migrate\Theme\PreviewThemeNegotiator
+    arguments: ['@request_stack', '@current_user', '@router.admin_context', '@config.factory', '@theme_handler']
+    tags:
+      - { name: theme_negotiator, priority: 500 }
+  Drupal\neo_migrate\Theme\PreviewThemeNegotiator: '@neo_migrate.preview_negotiator'

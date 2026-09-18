@@ -1,0 +1,4 @@
+preview neo migration:
+  title: 'Preview themes during a Neo migration'
+  description: 'Switch between the Neo and legacy themes for your own browser while both are installed.'
+  restrict access: true

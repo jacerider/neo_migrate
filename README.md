@@ -11,8 +11,16 @@ needs at runtime lives here.
 
 ## Status
 
-Phase 0 (measuring the legacy site) is built. Later phases are built as the
-pilot reaches them; the skill lists which exist.
+Phases 0 (measuring the legacy site) and 1 (installing Neo beside it) are
+built. Later phases are built as the pilot reaches them; the skill lists which
+exist.
+
+## Theme preview
+
+While both stacks are installed, an admin with the `preview neo migration`
+permission can see the other stack's themes in their own browser:
+`/neo-migrate/preview/neo`, `/neo-migrate/preview/legacy`, and
+`/neo-migrate/preview/off` (each accepts `?destination=/path`).
 
 ## Commands
 

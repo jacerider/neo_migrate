@@ -1,0 +1,9 @@
+neo_migrate.preview:
+  path: '/neo-migrate/preview/{mode}'
+  defaults:
+    _controller: '\Drupal\neo_migrate\Controller\PreviewController::set'
+  requirements:
+    _permission: 'preview neo migration'
+    mode: 'neo|legacy|off'
+  options:
+    no_cache: TRUE

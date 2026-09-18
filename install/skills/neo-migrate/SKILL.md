@@ -23,7 +23,7 @@ Done when the phase's gate criteria are all met and written into `state.yml` —
 | Phase | Goal | Reference | Gate |
 | --- | --- | --- | --- |
 | 0 | Measure the legacy site: audit, inventory, URL list, production baseline | [phase-0.md](references/phase-0.md) | G0 |
-| 1 | Install Neo beside the legacy stack, nothing public changes | not built yet | G1 |
+| 1 | Install Neo beside the legacy stack, nothing public changes | [phase-1.md](references/phase-1.md) | G1 |
 | 2 | Mechanical conversions: icons, favicon, toolbar, site settings, metatags, tree field | not built yet | G2 |
 | 3 | Front theme and components, iterated against parity | not built yet | G3 |
 | 4 | Convert content into component trees, verify against the inventory | not built yet | G4 |

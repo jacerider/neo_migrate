@@ -1,0 +1,23 @@
+<?php
+
+/**
+ * @file
+ * Install hooks for neo_migrate.
+ */
+
+/**
+ * Implements hook_install().
+ *
+ * Records the site's themes at install time as the legacy pair, so an admin
+ * can still preview them after cutover makes the Neo themes the defaults.
+ */
+function neo_migrate_install($is_syncing = FALSE) {
+  if ($is_syncing) {
+    return;
+  }
+  $themes = \Drupal::config('system.theme');
+  \Drupal::configFactory()->getEditable('neo_migrate.settings')
+    ->set('preview.legacy.front', (string) $themes->get('default'))
+    ->set('preview.legacy.admin', (string) $themes->get('admin'))
+    ->save();
+}

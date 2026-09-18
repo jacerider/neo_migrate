@@ -1,0 +1,24 @@
+neo_migrate.settings:
+  type: config_object
+  label: 'Neo Migrate settings'
+  mapping:
+    preview:
+      type: mapping
+      label: 'Themes an admin can preview while both stacks are installed'
+      mapping:
+        neo:
+          type: neo_migrate.preview_themes
+          label: 'Neo themes'
+        legacy:
+          type: neo_migrate.preview_themes
+          label: 'Legacy themes'
+
+neo_migrate.preview_themes:
+  type: mapping
+  mapping:
+    front:
+      type: string
+      label: 'Front-end theme'
+    admin:
+      type: string
+      label: 'Admin theme'

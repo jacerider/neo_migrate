@@ -1,0 +1,7 @@
+preview:
+  neo:
+    front: front
+    admin: back
+  legacy:
+    front: ''
+    admin: ''
