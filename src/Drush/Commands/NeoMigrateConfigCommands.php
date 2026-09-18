@@ -11,6 +11,7 @@ use Drupal\neo_migrate\Importer\MetatagRewriter;
 use Drupal\neo_migrate\Importer\SiteSettingsImporter;
 use Drupal\neo_migrate\Importer\ToolbarImporter;
 use Drupal\neo_migrate\Importer\TreeFieldInstaller;
+use Drupal\neo_migrate\PalletGenerator;
 use Drupal\neo_migrate\Source\ParagraphsSource;
 use Drush\Attributes as CLI;
 use Drush\Commands\AutowireTrait;
@@ -46,6 +47,32 @@ final class NeoMigrateConfigCommands extends DrushCommands {
     private readonly MetatagRewriter $metatagRewriter,
   ) {
     parent::__construct();
+  }
+
+  /**
+   * Sets a neo_color pallet from one brand colour. Creates config.
+   *
+   * The ramp is generated exactly as the pallet form generates it. Rebuild
+   * the assets afterwards (npm run deploy): pallets are compiled into CSS.
+   */
+  #[CLI\Command(name: 'neo-migrate:pallet', aliases: ['nmp'])]
+  #[CLI\Argument(name: 'id', description: 'The pallet, e.g. primary, secondary, accent.')]
+  #[CLI\Argument(name: 'hex', description: 'The brand colour, which becomes shade 500.')]
+  #[CLI\Option(name: 'dry-run', description: 'Print the ramp without saving.')]
+  #[CLI\Usage(name: 'drush neo-migrate:pallet primary "#0917B9"', description: 'Make the primary pallet the legacy brand blue.')]
+  public function pallet(string $id, string $hex, array $options = ['dry-run' => FALSE]): void {
+    $shades = (new PalletGenerator())->ramp($hex);
+    $this->io()->table(['Shade', 'Colour', 'Dark content'], array_map(null, array_keys($shades), array_column($shades, 'color'), array_column($shades, 'dark')));
+    if ($options['dry-run']) {
+      $this->io()->note('Dry run: nothing saved.');
+      return;
+    }
+    $config = \Drupal::configFactory()->getEditable("neo_color.neo_pallet.$id");
+    if ($config->isNew()) {
+      throw new \RuntimeException("No neo_color pallet \"$id\".");
+    }
+    $config->set('shades', array_map(static fn ($shade) => ['color' => $shade['color'], 'dark' => $shade['dark']], $shades))->set('specific', FALSE)->save();
+    $this->io()->success("Pallet $id set from $hex. Rebuild assets, then export config.");
   }
 
   /**

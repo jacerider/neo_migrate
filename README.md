@@ -44,6 +44,7 @@ These commands create config (run them locally, then export):
 | `drush neo-migrate:icon-field <type>.<field> --to=<name> [--dry-run]` | Adds a `neo_icon` twin beside a micon icon field, hidden on the form until the cutover. |
 | `drush neo-migrate:favicon [--dry-run]` | Moves the real_favicon package used on the default theme into neo_favicon. For the cutover only. |
 | `drush neo-migrate:metatags [--dry-run]` | Swaps legacy tokens for Neo tokens in the metatag defaults, from `token_map` in `neo_migrate.legacy.yml`. For the cutover only. |
+| `drush neo-migrate:pallet <id> <hex> [--dry-run]` | Sets a neo_color pallet from one legacy brand colour, generating the ramp exactly as the pallet form does. Rebuild assets afterwards. |
 | `drush neo-migrate:icons [--global] [--dry-run]` | Imports each micon package as a unique neo_icon library of the same name, so stored names such as `fa-wrench` keep resolving. Not global by default, so the legacy theme is untouched. |
 
 These commands change content (run them on every environment, after its config is deployed; they are safe to repeat):

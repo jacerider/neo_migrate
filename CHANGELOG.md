@@ -1,5 +1,14 @@
 # Changelog
 
+## A legacy brand colour becomes a neo pallet in one command
+
+**`drush neo-migrate:pallet <id> <hex>` sets a neo_color pallet from a single
+colour.** `PalletGenerator` ports neo_color's own generator: each shade mixes
+the colour toward white or black on `chroma.scale(['#fff', colour, '#000'])`
+at the pallet form's fixed points, and a shade is marked for dark content when
+its CIEDE2000 distance from white is 35 or less. Checked against a pallet the
+form generated: all 11 shades and flags match.
+
 ## The favicon and metatag conversions are ready for the cutover
 
 **`drush neo-migrate:favicon` moves the real_favicon package into
