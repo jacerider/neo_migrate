@@ -19,6 +19,14 @@ use Drupal\Core\File\FileSystemInterface;
  * `public://neo-file/<id>.zip`, registered as a neo_config_file whose parent
  * is the library, and saved, which makes the library unpack itself.
  *
+ * One change is made to the package on the way: IcoMoon names a glyph that
+ * has several names ("bars, navicon, reorder") with all of them joined, and
+ * neo_icon keys its lookup by that joined string, so no single name found
+ * the glyph. Each such glyph is renamed to its first name. The package's
+ * stylesheet already has a class per name, so nothing else changes; the
+ * other names stop being lookup names (the resolver's alias map covers the
+ * common ones).
+ *
  * Libraries are not global by default: they load only where a neo icon is
  * rendered, so the legacy theme, still drawing micon's own `fa-*` classes,
  * is untouched until the cutover.
@@ -68,10 +76,53 @@ final class IconImporter {
       $library->set('weight', 20);
       $library->save();
 
-      $this->attachArchive($library, (string) $package->getArchive());
-      $report[] = ['note' => $this->check($library)] + $row;
+      [$archive, $renamed] = $this->splitGlyphNames((string) $package->getArchive());
+      $this->attachArchive($library, $archive);
+      $note = $this->check($library);
+      if ($renamed) {
+        $note .= "; $renamed multi-name glyphs renamed to their first name";
+      }
+      $report[] = ['note' => $note] + $row;
     }
     return $report;
+  }
+
+  /**
+   * Renames each multi-name glyph in the package to its first name.
+   *
+   * @return array{0: string, 1: int}
+   *   The package, and how many glyphs were renamed.
+   */
+  private function splitGlyphNames(string $archive): array {
+    $path = $this->fileSystem->tempnam('temporary://', 'neo_migrate_icons');
+    file_put_contents($path, $archive);
+    $zip = new \ZipArchive();
+    if ($zip->open($this->fileSystem->realpath($path)) !== TRUE) {
+      $this->fileSystem->unlink($path);
+      return [$archive, 0];
+    }
+    $renamed = 0;
+    for ($index = 0; $index < $zip->numFiles; $index++) {
+      $entry = (string) $zip->getNameIndex($index);
+      if (basename($entry) !== 'selection.json') {
+        continue;
+      }
+      $selection = json_decode((string) $zip->getFromIndex($index), TRUE);
+      foreach ($selection['icons'] ?? [] as $delta => $icon) {
+        $name = $icon['properties']['name'] ?? '';
+        if (str_contains($name, ',')) {
+          $selection['icons'][$delta]['properties']['name'] = trim(explode(',', $name)[0]);
+          $renamed++;
+        }
+      }
+      if ($renamed) {
+        $zip->addFromString($entry, json_encode($selection, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+      }
+    }
+    $zip->close();
+    $result = (string) file_get_contents($path);
+    $this->fileSystem->unlink($path);
+    return [$result, $renamed];
   }
 
   /**

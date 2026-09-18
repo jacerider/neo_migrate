@@ -17,7 +17,7 @@ Snapshot first: `ddev snapshot --name pre-phase2`.
 
 Then `cex`, parity against `prod-baseline` (nothing public may move), commit, push, and on the multidev `cim` followed by every **content** command.
 
-- Icon libraries are imported non-global, so the legacy theme, still drawing micon's own classes, is untouched. neo_icon keys a glyph with several names ("close, remove, times") by the joined name: micon's alias selectors for those glyphs (`fa-close`, `fa-bars`, `fa-gear`…) do not resolve. List any the audit shows in live content as a decision.
+- Icon libraries are imported non-global, so the legacy theme, still drawing micon's own classes, is untouched. IcoMoon names a glyph with several names by joining them ("bars, navicon, reorder"), and neo_icon keys its lookup by that string, so the importer renames each such glyph to its first name (`fa-bars`, `fa-close`, `fa-cog`). The other names keep their CSS classes but stop being lookup names; `icon_aliases` in `neo_migrate.legacy.yml` maps the common ones (`gear` → `cog`). List any alias the audit shows in live content that still does not resolve.
 - The icon field twin stays hidden on the form until the cutover; editors keep using the micon field, and the values are copied again then.
 - Site settings are copied again at the cutover, for the same reason.
 
