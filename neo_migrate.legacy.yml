@@ -164,6 +164,13 @@ site_settings:
     hours.field_friday: friday
     hours.field_saturday: saturday
     hours.field_sunday: sunday
+  # The icon each link field shows, set on its neo_link formatter: the legacy
+  # module drew every social link as micon's `fa-<network>`.
+  link_icons:
+    social.field_facebook: fa-facebook
+    social.field_x: fa-twitter
+    social.field_instagram: fa-instagram
+    social.field_linkedin: fa-linkedin
   bundles:
     hours:
       label: Hours

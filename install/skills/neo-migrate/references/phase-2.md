@@ -10,7 +10,7 @@ Snapshot first: `ddev snapshot --name pre-phase2`.
 | --- | --- | --- | --- |
 | Icon packages | `drush neo-migrate:icons` | config | Every icon name the audit lists resolves: `\Drupal::service('neo_icon.repository')->getIconFromLibrary($name)` returns an icon from the library of the same prefix. Use `getIconFromLibrary`, not `getIconBySelector` (that one matches CSS prefixes). |
 | Component tree field | `drush neo-migrate:tree-field` | config | `field_full` on every paragraphs host bundle, hidden on the form, in each display that shows the legacy body; `neo_migrate.settings:coexistence` names both fields. |
-| Site settings bundles | `drush neo-migrate:site-settings-types` | config | The bundles in the `site_settings` map exist with their fields. |
+| Site settings bundles | `drush neo-migrate:site-settings-types` | config | The bundles in the `site_settings` map exist with their fields; each `link_icons` field's formatter shows the legacy icon (`fa-facebook`…). |
 | Site settings values | `drush neo-migrate:site-settings` | content | Every mapped value set; `[site:address:city]` and friends parse the address. |
 | Icon field twins | `drush neo-migrate:icon-field <type>.<field> --to=<name>` | config | One per micon field on a host entity (the audit's icon fields not on paragraphs). |
 | Icon field values | `drush neo-migrate:icon-field-values <type>.<field> --to=<name>` | content | All values copied; a second run updates 0; changed times and aliases unchanged. |

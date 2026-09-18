@@ -29,7 +29,8 @@ final class SiteSettingsImporter {
   ) {}
 
   /**
-   * Creates the bundles and fields the map needs. Creates config.
+   * Creates the bundles and fields the map needs, and sets the legacy icon on
+   * each mapped link field's formatter. Creates config.
    *
    * @return list<string>
    *   What was created.
@@ -68,6 +69,22 @@ final class SiteSettingsImporter {
           }
         }
         $fieldWeight++;
+      }
+    }
+    foreach ($this->catalog->get('site_settings')['link_icons'] ?? [] as $target => $icon) {
+      [$bundle, $name] = explode('.', $target, 2);
+      if (!$types->load($bundle)) {
+        continue;
+      }
+      $display = $this->displayRepository->getViewDisplay('neo_site_settings', $bundle);
+      $component = $display->getComponent($name);
+      if (!$component || ($component['settings']['icon'] ?? NULL) === $icon) {
+        continue;
+      }
+      $created[] = "icon $target: $icon";
+      if (!$dryRun) {
+        $component['settings']['icon'] = $icon;
+        $display->setComponent($name, $component)->save();
       }
     }
     return $created;

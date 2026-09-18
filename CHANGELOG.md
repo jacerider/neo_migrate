@@ -1,5 +1,13 @@
 # Changelog
 
+## Social links keep their legacy icons
+
+**`neo-migrate:site-settings-types` sets each social link's icon** on its
+neo_link formatter from the new `link_icons` map: the legacy module drew every
+social link as micon's `fa-<network>`, so the footer keeps the same glyph.
+**`cli.mjs probe` also prints colours, borders, opacity and `::before` /
+`::after` content**, which legacy themes use for decoration.
+
 ## Parity captures the Neo theme behind its preview, and probes offsets
 
 **A parity target can log in and preview the Neo themes.** A target may be an
