@@ -8,6 +8,7 @@ The screenshot comparison that proves the public site unchanged. Lives in `web/m
 | --- | --- |
 | `cli.mjs capture --target=<t> --label=<l> [--only=/a,/b] [--widths=375,1440]` | Screenshots every visual URL in `migration/urls.json` at every width; checks every status URL. Writes `.neo-migrate/captures/<l>/`. |
 | `cli.mjs compare <a> <b>` | Compares two captures. Writes `.neo-migrate/reports/<a>__<b>/index.html` and `summary.json`. |
+| `cli.mjs probe --target=<t> [--path=/] [--width=1440] [--depth=3] '<selector>'` | Prints unrounded boxes and key computed styles for the matching elements and their descendants. For the sub-pixel offsets a section diff points at, where the rounded boxes in `styles.json` look identical. |
 
 Before each shot the tool blocks tracking scripts, disables animation, scrolls through the page so lazy content loads, waits for fonts and images, hides `hide:` selectors and paints `mask:` selectors magenta. Each capture also records per section: position, visible text, and computed styles of the section and its headings, paragraphs, links, buttons and images (`styles.json`) — the measured values to build the new components from, instead of reading the old SCSS.
 
@@ -41,6 +42,21 @@ themes:
 ```
 
 The theme is the first whose `detect` selector is on the page. The Neo front theme gets its own entry in phase 3, using the same section names so keys line up.
+
+### Capturing the Neo theme before the cutover
+
+Until the cutover only a logged-in user with "preview neo migration" sees the Neo themes, so the target logs in and turns the preview on:
+
+```yaml
+targets:
+  local-neo:
+    url: https://example.ddev.site
+    login: ddev drush uli --no-browser   # any command printing a one-time login link
+    preview: neo                         # neo_migrate's theme preview mode
+    hide: ['#block-local-tasks']         # admin-only chrome on this target
+```
+
+The tool logs in once, visits `/neo-migrate/preview/<mode>`, checks the preview cookie took, and reuses that session for every page; the preview banner is hidden. Status codes are still checked anonymously. On a multidev the login is `terminus drush <site>.<env> -- uli --no-browser`.
 
 ## Flaky sections
 

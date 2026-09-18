@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium, request } from 'playwright';
@@ -18,21 +19,31 @@ const STYLE_PROPS = [
 const STYLE_SAMPLES = ['h1', 'h2', 'h3', 'h4', 'p', 'a', '.button', '.btn', 'button', 'img', 'li', 'input'];
 
 /**
+ * The banner neo_migrate prints on every page while a theme preview is on.
+ */
+const PREVIEW_BANNER = '.neo-migrate-preview';
+
+/**
  * Screenshots every visual URL at every width, and checks every status URL.
  */
-export async function capture(config, { target, label, only, widths }) {
-  const base = config.targets?.[target];
-  if (!base) {
-    throw new Error(`Unknown target "${target}". Known: ${Object.keys(config.targets ?? {}).join(', ')}`);
+export async function capture(config, { target: name, label, only, widths }) {
+  const target = config.targets[name];
+  if (!target) {
+    throw new Error(`Unknown target "${name}". Known: ${Object.keys(config.targets).join(', ')}`);
   }
+  const base = target.url;
   const urls = loadUrls(config).filter((url) => !only || only.includes(url.path));
   const dir = join(config.outputDir, 'captures', label);
   mkdirSync(dir, { recursive: true });
 
+  // Status codes are checked anonymously on every target: a session changes
+  // what a page looks like, not whether it exists.
   const status = await checkStatus(base, urls.filter((url) => url.check === 'status'));
   writeFileSync(join(dir, 'status.json'), JSON.stringify(status, null, 2));
 
   const browser = await chromium.launch();
+  const session = target.login ? await startSession(browser, config, target) : undefined;
+  const hide = [...config.hide, ...target.hide, ...(target.preview ? [PREVIEW_BANNER] : [])];
   const jobs = [];
   for (const url of urls.filter((u) => u.check === 'visual')) {
     for (const width of widths ?? config.widths) {
@@ -44,7 +55,7 @@ export async function capture(config, { target, label, only, widths }) {
   const worker = async () => {
     while (jobs.length) {
       const job = jobs.shift();
-      const result = await capturePage(browser, config, base, dir, job).catch((error) => ({ path: job.url.path, width: job.width, error: String(error) }));
+      const result = await capturePage(browser, config, { base, session, hide }, dir, job).catch((error) => ({ path: job.url.path, width: job.width, error: String(error) }));
       results.push(result);
       done++;
       const tag = result.error ? `ERROR ${result.error}` : `${result.status} ${result.sections} sections`;
@@ -54,7 +65,7 @@ export async function capture(config, { target, label, only, widths }) {
   await Promise.all(Array.from({ length: config.concurrency }, worker));
   await browser.close();
 
-  const manifest = { label, target, base, captured: new Date().toISOString(), widths: widths ?? config.widths, pages: results };
+  const manifest = { label, target: name, base, preview: target.preview ?? null, captured: new Date().toISOString(), widths: widths ?? config.widths, pages: results };
   writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2));
   return manifest;
 }
@@ -62,8 +73,9 @@ export async function capture(config, { target, label, only, widths }) {
 /**
  * One URL at one width: full-page shot, section boxes, text, meta, styles.
  */
-async function capturePage(browser, config, base, dir, { url, width }) {
+async function capturePage(browser, config, { base, session, hide }, dir, { url, width }) {
   const context = await browser.newContext({
+    storageState: session,
     viewport: { width, height: config.height },
     reducedMotion: 'reduce',
     ignoreHTTPSErrors: true,
@@ -75,12 +87,12 @@ async function capturePage(browser, config, base, dir, { url, width }) {
     return config.block.some((pattern) => request.includes(pattern)) ? route.abort() : route.continue();
   });
   try {
-    const response = await page.goto(base.replace(/\/$/, '') + url.path, { waitUntil: 'load', timeout: 60000 });
+    const response = await page.goto(base + url.path, { waitUntil: 'load', timeout: 60000 });
     await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
     await page.addStyleTag({
       content: [
         '*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }',
-        ...config.hide.map((selector) => `${selector} { display: none !important; }`),
+        ...hide.map((selector) => `${selector} { display: none !important; }`),
       ].join('\n'),
     });
     await settle(page);
@@ -105,6 +117,41 @@ async function capturePage(browser, config, base, dir, { url, width }) {
     writeFileSync(join(out, 'meta.json'), JSON.stringify(meta, null, 2));
     writeFileSync(join(out, 'styles.json'), JSON.stringify(data.styles, null, 2));
     return { path: url.path, width, status: meta.status, theme: data.theme, sections: data.sections.length, dir: out };
+  }
+  finally {
+    await context.close();
+  }
+}
+
+/**
+ * Logs in once with the target's one-time login command, turns on the theme
+ * preview when the target asks for one, and returns the session for every
+ * page context to reuse.
+ */
+export async function startSession(browser, config, target) {
+  const output = execSync(target.login, { cwd: config.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const link = output.split('\n').map((line) => line.trim()).find((line) => /^https?:\/\//.test(line));
+  if (!link) {
+    throw new Error(`"${target.login}" printed no login link.`);
+  }
+  // Only the path is used: drush may print a link for a different host than
+  // the one the target is reached on.
+  const { pathname, search } = new URL(link);
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  try {
+    const page = await context.newPage();
+    await page.goto(target.url + pathname + search, { waitUntil: 'load', timeout: 60000 });
+    if (/\/user\/reset\//.test(new URL(page.url()).pathname)) {
+      throw new Error('The one-time login link was refused (already used or expired).');
+    }
+    if (target.preview) {
+      await page.goto(`${target.url}/neo-migrate/preview/${target.preview}`, { waitUntil: 'load', timeout: 60000 });
+      const cookies = await context.cookies(target.url);
+      if (!cookies.some((cookie) => cookie.name === 'neo_migrate_preview' && cookie.value === target.preview)) {
+        throw new Error(`The "${target.preview}" preview did not switch on; does the login user have "preview neo migration"?`);
+      }
+    }
+    return await context.storageState();
   }
   finally {
     await context.close();
@@ -209,7 +256,7 @@ async function checkStatus(base, urls) {
   const results = [];
   for (const url of urls) {
     try {
-      const response = await api.get(base.replace(/\/$/, '') + url.path, { maxRedirects: 0, timeout: 30000 });
+      const response = await api.get(base + url.path, { maxRedirects: 0, timeout: 30000 });
       results.push({ path: url.path, kind: url.kind, status: response.status(), location: response.headers().location ?? null });
     }
     catch (error) {

@@ -1,5 +1,25 @@
 # Changelog
 
+## Parity captures the Neo theme behind its preview, and probes offsets
+
+**A parity target can log in and preview the Neo themes.** A target may be an
+object with a `login` command (anything that prints a one-time login link, such
+as `ddev drush uli --no-browser`), a `preview` mode and extra `hide` selectors.
+The tool logs in once, switches the preview on, checks the cookie took, and
+reuses the session for every page, so the Neo front theme can be compared
+against the production baseline before the cutover.
+
+**`cli.mjs probe` prints unrounded boxes and styles** for a selector and its
+descendants on any target, for chasing sub-pixel offsets a section diff shows.
+
+## Multi-name icon glyphs resolve by their first name
+
+**The icon importer renames each IcoMoon glyph that has several names**
+("bars, navicon, reorder") to its first name before import. neo_icon keyed
+such glyphs by the joined string, so `fa-bars`, `fa-close` and 90 others found
+nothing; the stylesheet already had a class per name, so only the lookup
+changes.
+
 ## A legacy brand colour becomes a neo pallet in one command
 
 **`drush neo-migrate:pallet <id> <hex>` sets a neo_color pallet from a single

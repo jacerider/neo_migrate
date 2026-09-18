@@ -6,16 +6,20 @@
  *
  *   node <neo_migrate>/tools/parity/cli.mjs capture --target=prod --label=prod-baseline
  *   node <neo_migrate>/tools/parity/cli.mjs compare prod-baseline local-legacy
+ *   node <neo_migrate>/tools/parity/cli.mjs probe --target=prod --path=/ --width=375 '.region.top'
  *
  * Options:
  *   --config=<file>     parity config (default migration/parity.yml)
  *   --only=/a,/b        capture only these paths
  *   --widths=375,1440   override the configured widths
+ *   --path, --width, --depth   probe: the page, the width (default 1440) and
+ *                       how many levels of descendants to print (default 3)
  */
 import { parseArgs } from 'node:util';
 import { loadConfig } from './lib/config.mjs';
 import { capture } from './lib/capture.mjs';
 import { compare } from './lib/compare.mjs';
+import { probe } from './lib/probe.mjs';
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -25,13 +29,16 @@ const { values, positionals } = parseArgs({
     label: { type: 'string' },
     only: { type: 'string' },
     widths: { type: 'string' },
+    path: { type: 'string', default: '/' },
+    width: { type: 'string', default: '1440' },
+    depth: { type: 'string', default: '3' },
     help: { type: 'boolean', short: 'h' },
   },
 });
 
 const [command, ...args] = positionals;
 const usage = () => {
-  console.log('Usage:\n  cli.mjs capture --target=<name> --label=<label> [--only=/a,/b] [--widths=375,1440]\n  cli.mjs compare <labelA> <labelB>');
+  console.log('Usage:\n  cli.mjs capture --target=<name> --label=<label> [--only=/a,/b] [--widths=375,1440]\n  cli.mjs compare <labelA> <labelB>\n  cli.mjs probe --target=<name> [--path=/] [--width=1440] [--depth=3] <selector>');
 };
 
 try {
@@ -57,6 +64,12 @@ try {
     const { reportDir, totals } = await compare(config, args[0], args[1]);
     console.log(`\n${totals.passRate}% of ${totals.sections} sections pass (warn ${totals.warn}, fail ${totals.fail}, missing ${totals.missing}); ${totals.textMissing} missing words; ${totals.metaDifferences} head differences; ${totals.statusDifferences} status differences.`);
     console.log(`Report: ${reportDir}/index.html`);
+    process.exit(0);
+  }
+  if (command === 'probe') {
+    if (!values.target || args.length !== 1) throw new Error('probe needs --target and one selector.');
+    const lines = await probe(config, { target: values.target, path: values.path, width: Number(values.width), selector: args[0], depth: Number(values.depth) });
+    console.log(lines.length ? lines.join('\n') : `Nothing matches ${args[0]}.`);
     process.exit(0);
   }
   throw new Error(`Unknown command "${command}".`);

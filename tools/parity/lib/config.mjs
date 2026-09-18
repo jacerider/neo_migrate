@@ -43,7 +43,30 @@ export function loadConfig(file = 'migration/parity.yml') {
   config.file = path;
   config.outputDir = resolve(config.root, config.output);
   config.urlsFile = resolve(config.root, config.urls);
+  config.targets = Object.fromEntries(Object.entries(site.targets ?? {}).map(([name, target]) => [name, normalizeTarget(name, target)]));
   return config;
+}
+
+/**
+ * A target is a base URL, or an object for captures that need a session:
+ *
+ *   local-neo:
+ *     url: https://example.ddev.site
+ *     login: ddev drush uli --no-browser   # prints a one-time login link
+ *     preview: neo                         # neo_migrate theme preview mode
+ *     hide: ['.tabs']                      # extra selectors for this target
+ */
+function normalizeTarget(name, target) {
+  const normalized = typeof target === 'string' ? { url: target } : { ...target };
+  if (!normalized.url) {
+    throw new Error(`Target "${name}" has no url.`);
+  }
+  if (normalized.preview && !normalized.login) {
+    throw new Error(`Target "${name}" previews themes, which needs a login command.`);
+  }
+  normalized.url = normalized.url.replace(/\/$/, '');
+  normalized.hide = normalized.hide ?? [];
+  return normalized;
 }
 
 /**
