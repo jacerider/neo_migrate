@@ -1,0 +1,21 @@
+# Migration state — the first thing a session reads, the last thing it updates.
+site: <ddev project name>
+production: <https://www.example.com>
+plan: <path to the migration plan, if any>
+
+phase: 0
+gates:
+  G0: { passed: false, by: ~, on: ~ }
+  G1: { passed: false, by: ~, on: ~ }
+  G2: { passed: false, by: ~, on: ~ }
+  G3: { passed: false, by: ~, on: ~ }
+  G4: { passed: false, by: ~, on: ~ }
+
+# Decisions a person must make, with the evidence and a recommendation.
+open_decisions: []
+
+# Decisions made, so no session relitigates them.
+decisions: []
+
+# Findings worth carrying forward: pre-existing bugs, surprises, corrections.
+notes: []

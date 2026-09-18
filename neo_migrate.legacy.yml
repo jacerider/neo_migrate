@@ -1,0 +1,149 @@
+# The legacy extensions neo_migrate recognises, and what becomes of each.
+#
+# handling:
+#   mechanical  A neo_migrate command converts it; no per-site decisions.
+#   judgment    A person (or the AI, reviewed by a person) decides per site.
+#   remove      Uninstalled at teardown; nothing to carry over.
+# phase: the plan phase in which it is dealt with (see the neo-migrate skill).
+#
+# Anything enabled that is neither core, Neo, nor listed here is reported by
+# the audit as "unclassified" so a person can decide.
+
+modules:
+  # Content building.
+  paragraphs: { replacement: neo_alchemist, handling: judgment, phase: 4, note: 'Each live paragraph type becomes a component; content is converted in place.' }
+  entity_reference_revisions: { replacement: ~, handling: remove, phase: 5 }
+  paragraphs_library: { replacement: neo_alchemist, handling: judgment, phase: 4 }
+  paragraphs_type_permissions: { replacement: ~, handling: remove, phase: 5 }
+  paragraphs_summary_token: { replacement: 'neo smart tokens', handling: mechanical, phase: 2 }
+  paragraph_meta: { replacement: 'neo smart tokens', handling: mechanical, phase: 2, note: 'Its paragraph_meta_smart_* tokens usually drive metatag defaults.' }
+  micon_paragraphs: { replacement: ~, handling: remove, phase: 5 }
+  ux_paragraphs: { replacement: ~, handling: remove, phase: 5 }
+  client_paragraphs_widget: { replacement: ~, handling: remove, phase: 5 }
+  exo_paragraphs: { replacement: neo_alchemist, handling: judgment, phase: 4 }
+
+  # Icons.
+  micon: { replacement: neo_icon, handling: mechanical, phase: 2, note: 'Packages import as unique neo_icon libraries, so stored names keep working.' }
+  micon_content_type: { replacement: neo_icon, handling: mechanical, phase: 2 }
+  micon_vocabulary: { replacement: neo_icon, handling: mechanical, phase: 2 }
+  micon_menu: { replacement: neo_menu_link, handling: mechanical, phase: 2, note: 'neo_menu_link reads the same data-icon attributes.' }
+  micon_link: { replacement: neo_menu_link, handling: mechanical, phase: 2 }
+  micon_local_task: { replacement: neo_icon_local_task, handling: mechanical, phase: 2 }
+  micon_ckeditor: { replacement: ~, handling: judgment, phase: 3 }
+  micon_linkit: { replacement: ~, handling: remove, phase: 5 }
+  micon_linkit_attributes: { replacement: ~, handling: remove, phase: 5 }
+  micon_rating: { replacement: 'component prop', handling: judgment, phase: 3 }
+
+  # Admin chrome.
+  escort: { replacement: neo_toolbar, handling: mechanical, phase: 2 }
+  real_favicon: { replacement: neo_favicon, handling: mechanical, phase: 2 }
+  site_settings: { replacement: neo_site_settings, handling: mechanical, phase: 2 }
+
+  # Frontend behaviour.
+  ux: { replacement: neo_modal, handling: judgment, phase: 3 }
+  ux_aside: { replacement: neo_modal, handling: judgment, phase: 3, note: 'Off-canvas panels become neo_modal shelves.' }
+  ux_dialog: { replacement: neo_modal, handling: judgment, phase: 3 }
+  ux_form: { replacement: ~, handling: remove, phase: 5 }
+  ux_header: { replacement: 'front theme', handling: judgment, phase: 3 }
+  ux_menu: { replacement: neo_modal, handling: judgment, phase: 3, note: 'The mobile menu becomes a neo_modal slide menu block.' }
+  ux_offcanvas: { replacement: neo_modal, handling: judgment, phase: 3 }
+  ux_offcanvas_menu: { replacement: neo_modal, handling: judgment, phase: 3 }
+  colorbox: { replacement: neo_modal, handling: judgment, phase: 3 }
+  colorbox_inline: { replacement: neo_modal, handling: judgment, phase: 3 }
+  jquery_once: { replacement: ~, handling: remove, phase: 5 }
+
+  # Field types and formatters that only served paragraphs.
+  image_bg: { replacement: 'component prop', handling: judgment, phase: 3 }
+  video_bg: { replacement: 'component prop', handling: judgment, phase: 3 }
+  video_embed_field: { replacement: 'remote_video media', handling: mechanical, phase: 4 }
+  viewsreference: { replacement: 'neo_alchemist views value', handling: judgment, phase: 3 }
+  viewsreference_simple: { replacement: ~, handling: remove, phase: 5 }
+  geolocation: { replacement: 'component props', handling: judgment, phase: 3 }
+  geolocation_google_maps: { replacement: 'component props', handling: judgment, phase: 3 }
+  geolocation_radius: { replacement: 'component props', handling: judgment, phase: 3 }
+  html_string_formatter: { replacement: ~, handling: remove, phase: 5 }
+  text_asterisk_formatter: { replacement: ~, handling: judgment, phase: 5 }
+  editor_link_classify: { replacement: 'CKEditor 5 styles', handling: judgment, phase: 3 }
+
+  # Config helpers.
+  exo_config: { replacement: neo_config_flow, handling: judgment, phase: 5 }
+
+themes:
+  aeon: { replacement: neo_front, handling: judgment, phase: 3, note: 'Sub-themes of aeon are rebuilt as the neo "front" theme.' }
+  seven: { replacement: neo_back, handling: mechanical, phase: 5 }
+  claro: { replacement: neo_back, handling: mechanical, phase: 5 }
+
+# Contrib modules that carry over unchanged. They are left out of the audit's
+# "unclassified" list, so what remains there is genuinely site-specific.
+keep:
+  - allowed_formats
+  - captcha
+  - config_filter
+  - config_ignore
+  - config_readonly
+  - config_split
+  - crop
+  - devel
+  - editor_advanced_link
+  - entity
+  - entity_clone
+  - entity_clone_extras
+  - field_group
+  - focal_point
+  - google_tag
+  - key
+  - linkit
+  - mailsystem
+  - metatag
+  - metatag_open_graph
+  - metatag_twitter_cards
+  - pantheon_advanced_page_cache
+  - pathauto
+  - recaptcha
+  - redirect
+  - redis
+  - reroute_email
+  - schema_metatag
+  - schema_organization
+  - schema_web_page
+  - schema_web_site
+  - simple_sitemap
+  - smtp
+  - stage_file_proxy
+  - token
+  - turnstile
+  - upgrade_status
+  - valet
+  - webform
+  - webform_ui
+  - xmlsitemap
+  - xmlsitemap_engines
+
+# Token name fragments that belong to legacy modules. Metatag defaults (and
+# other config) holding one of these must be rewritten before teardown.
+tokens:
+  - paragraph_meta_smart_
+  - paragraphs_summary
+
+# Escort item plugins and the neo_toolbar item plugin each maps to.
+escort_plugins:
+  admin_escape: favicon
+  branding: favicon
+  current_user: user
+  user: user
+  link: link
+  local_tasks: local_tasks
+  node_add: create
+  node_manage: link
+  divider: divider
+
+# Strings searched for in the site's own code (the default theme and any module
+# outside core/contrib) to show how tightly it is coupled to the legacy stack.
+code_patterns:
+  micon: 'micon'
+  escort: 'escort'
+  aeon: 'aeon'
+  paragraph: 'paragraph'
+  colorbox: 'colorbox'
+  ux: 'ux-'
+  foundation: 'foundation'

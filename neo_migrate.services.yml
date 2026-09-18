@@ -1,0 +1,46 @@
+services:
+  neo_migrate.workspace:
+    class: Drupal\neo_migrate\Workspace
+    arguments: ['%app.root%']
+
+  neo_migrate.catalog:
+    class: Drupal\neo_migrate\LegacyCatalog
+
+  neo_migrate.field_normalizer:
+    class: Drupal\neo_migrate\FieldNormalizer
+
+  neo_migrate.source.paragraphs:
+    class: Drupal\neo_migrate\Source\ParagraphsSource
+    arguments: ['@entity_field.manager', '@module_handler', '@neo_migrate.field_normalizer']
+
+  neo_migrate.inventory:
+    class: Drupal\neo_migrate\Inventory
+    arguments: ['@entity_type.manager', '@neo_migrate.source.paragraphs', '@neo_migrate.field_normalizer', '@path_alias.manager']
+
+  neo_migrate.url_collector:
+    class: Drupal\neo_migrate\UrlCollector
+    arguments: ['@entity_type.manager', '@path_alias.manager', '@config.factory', '@module_handler']
+
+  neo_migrate.metrics:
+    class: Drupal\neo_migrate\MetricsLog
+    arguments: ['@neo_migrate.workspace']
+
+  neo_migrate.auditor:
+    class: Drupal\neo_migrate\Auditor
+    arguments:
+      - '@entity_type.manager'
+      - '@entity_field.manager'
+      - '@module_handler'
+      - '@extension.list.module'
+      - '@extension.list.theme'
+      - '@theme_handler'
+      - '@config.factory'
+      - '@config.manager'
+      - '@database'
+      - '@neo_migrate.catalog'
+      - '@neo_migrate.source.paragraphs'
+      - '@neo_migrate.inventory'
+      - '%app.root%'
+
+  neo_migrate.audit_markdown:
+    class: Drupal\neo_migrate\AuditMarkdown

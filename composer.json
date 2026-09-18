@@ -1,0 +1,22 @@
+{
+  "name": "jacerider/neo_migrate",
+  "description": "Moves a legacy site (paragraphs, micon, escort, real_favicon, aeon) onto the Neo suite.",
+  "type": "drupal-module",
+  "license": "proprietary",
+  "homepage": "https://github.com/jacerider/neo_migrate",
+  "authors": [
+    {
+      "name": "Cyle Carlson (JaceRider)",
+      "email": "jacerider@gmail.com",
+      "role": "Maintainer"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/jacerider/neo_migrate/issues",
+    "source": "https://github.com/jacerider/neo_migrate"
+  },
+  "minimum-stability": "dev",
+  "require": {
+    "drupal/core": "^11"
+  }
+}

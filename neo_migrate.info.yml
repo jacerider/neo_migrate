@@ -1,0 +1,5 @@
+name: 'Neo | Migrate'
+type: module
+description: 'Moves a legacy site (paragraphs, micon, escort, real_favicon, aeon) onto the Neo suite.'
+package: Neo
+core_version_requirement: ^11
