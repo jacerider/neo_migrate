@@ -1,5 +1,19 @@
 # Changelog
 
+## The favicon and metatag conversions are ready for the cutover
+
+**`drush neo-migrate:favicon` moves the real_favicon package into
+neo_favicon**: the package serving the default theme is decoded from its
+config, registered as neo_favicon's config file (which unpacks it into
+`public://neo-favicon`), and its tags copied into `neo_favicon.settings`.
+**`drush neo-migrate:metatags` swaps legacy tokens for Neo tokens** in every
+metatag default, from the new `token_map` in `neo_migrate.legacy.yml`, and
+reports any legacy token left. Both wait for the cutover: the two favicon
+modules write the same head tags, and the Neo tokens read the component tree.
+
+**The skill has a phase 2 reference**: what converts now, what waits, and the
+checks for gate G2.
+
 ## Site settings and icon fields move to neo, in two halves
 
 **Structure is config, values are content.** `neo-migrate:site-settings-types`

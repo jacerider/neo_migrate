@@ -11,8 +11,8 @@ needs at runtime lives here.
 
 ## Status
 
-Phases 0 (measuring the legacy site) and 1 (installing Neo beside it) are
-built. Later phases are built as the pilot reaches them; the skill lists which
+Phases 0 (measuring the legacy site), 1 (installing Neo beside it) and 2
+(mechanical conversions) are built. Later phases are built as the pilot reaches them; the skill lists which
 exist.
 
 ## Theme preview
@@ -42,6 +42,8 @@ These commands create config (run them locally, then export):
 | `drush neo-migrate:tree-field [--field=field_full] [--dry-run]` | Adds a `neo_component_tree` field beside every paragraphs host field, hidden on the edit form and rendered wherever the legacy body is. While both exist, the legacy theme renders only the old body and the Neo front theme only the tree. |
 | `drush neo-migrate:site-settings-types [--dry-run]` | Creates the neo_site_settings bundles the legacy values need (`hours`), from the `site_settings` map in `neo_migrate.legacy.yml`. |
 | `drush neo-migrate:icon-field <type>.<field> --to=<name> [--dry-run]` | Adds a `neo_icon` twin beside a micon icon field, hidden on the form until the cutover. |
+| `drush neo-migrate:favicon [--dry-run]` | Moves the real_favicon package used on the default theme into neo_favicon. For the cutover only. |
+| `drush neo-migrate:metatags [--dry-run]` | Swaps legacy tokens for Neo tokens in the metatag defaults, from `token_map` in `neo_migrate.legacy.yml`. For the cutover only. |
 | `drush neo-migrate:icons [--global] [--dry-run]` | Imports each micon package as a unique neo_icon library of the same name, so stored names such as `fa-wrench` keep resolving. Not global by default, so the legacy theme is untouched. |
 
 These commands change content (run them on every environment, after its config is deployed; they are safe to repeat):

@@ -125,6 +125,13 @@ tokens:
   - paragraph_meta_smart_
   - paragraphs_summary
 
+# Legacy tokens and the Neo tokens that replace them in metatag defaults.
+token_map:
+  '[node:paragraph_meta_smart_title:value]': '[neo:title]'
+  '[node:paragraph_meta_smart_description:value]': '[neo:description]'
+  '[node:paragraph_meta_smart_image:meta:url]': '[neo:image]'
+  '[node:paragraph_meta_smart_image:url]': '[neo:image]'
+
 # Escort item plugins and the neo_toolbar item plugin each maps to.
 escort_plugins:
   admin_escape: favicon

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Drupal\neo_migrate\Drush\Commands;
 
+use Drupal\neo_migrate\Importer\FaviconImporter;
 use Drupal\neo_migrate\Importer\IconFieldImporter;
 use Drupal\neo_migrate\Importer\IconImporter;
+use Drupal\neo_migrate\Importer\MetatagRewriter;
 use Drupal\neo_migrate\Importer\SiteSettingsImporter;
 use Drupal\neo_migrate\Importer\ToolbarImporter;
 use Drupal\neo_migrate\Importer\TreeFieldInstaller;
@@ -38,8 +40,38 @@ final class NeoMigrateConfigCommands extends DrushCommands {
     private readonly SiteSettingsImporter $siteSettingsImporter,
     #[Autowire(service: 'neo_migrate.icon_field_importer')]
     private readonly IconFieldImporter $iconFieldImporter,
+    #[Autowire(service: 'neo_migrate.favicon_importer')]
+    private readonly FaviconImporter $faviconImporter,
+    #[Autowire(service: 'neo_migrate.metatag_rewriter')]
+    private readonly MetatagRewriter $metatagRewriter,
   ) {
     parent::__construct();
+  }
+
+  /**
+   * Swaps legacy tokens for Neo tokens in the metatag defaults. Creates config.
+   *
+   * For the cutover: the Neo tokens read the component tree.
+   */
+  #[CLI\Command(name: 'neo-migrate:metatags', aliases: ['nmmt'])]
+  #[CLI\Option(name: 'dry-run', description: 'Report what would happen without saving.')]
+  public function metatags(array $options = ['dry-run' => FALSE]): void {
+    $report = $this->metatagRewriter->rewrite((bool) $options['dry-run']);
+    $this->io()->table(['Config', 'Tag', 'From', 'To'], array_map(static fn ($row) => [str_replace('metatag.metatag_defaults.', '', $row['config']), $row['tag'], $row['from'], $row['to'] === '' ? '(legacy token left)' : $row['to']], $report));
+    $this->io()->success($options['dry-run'] ? 'Dry run: nothing saved.' : 'Saved. Export it with the cutover.');
+  }
+
+  /**
+   * Moves the real_favicon package into neo_favicon. Creates config.
+   *
+   * For the cutover only: both modules write the same head tags.
+   */
+  #[CLI\Command(name: 'neo-migrate:favicon', aliases: ['nmfav'])]
+  #[CLI\Option(name: 'dry-run', description: 'Report what would happen without saving.')]
+  public function favicon(array $options = ['dry-run' => FALSE]): void {
+    $result = $this->faviconImporter->import((bool) $options['dry-run']);
+    $this->io()->definitionList(['real_favicon package' => $result['package']], ['Tags' => $result['tags']], ['Files unpacked' => $result['files']]);
+    $this->io()->success($options['dry-run'] ? 'Dry run: nothing saved.' : 'Saved. Export it with the cutover, alongside uninstalling real_favicon.');
   }
 
   /**

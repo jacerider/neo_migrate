@@ -66,6 +66,14 @@ services:
     class: Drupal\neo_migrate\Importer\IconFieldImporter
     arguments: ['@entity_type.manager', '@entity_display.repository']
 
+  neo_migrate.favicon_importer:
+    class: Drupal\neo_migrate\Importer\FaviconImporter
+    arguments: ['@entity_type.manager', '@config.factory', '@file_system']
+
+  neo_migrate.metatag_rewriter:
+    class: Drupal\neo_migrate\Importer\MetatagRewriter
+    arguments: ['@config.factory', '@neo_migrate.catalog']
+
   neo_migrate.toolbar_importer:
     class: Drupal\neo_migrate\Importer\ToolbarImporter
     arguments: ['@entity_type.manager', '@config.factory', '@config.storage.sync', '@neo_migrate.icon_resolver', '@neo_migrate.catalog']
