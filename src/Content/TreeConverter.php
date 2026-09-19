@@ -1,0 +1,149 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Drupal\neo_migrate\Content;
+
+use Drupal\Core\Entity\ContentEntityInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+
+/**
+ * Turns a legacy tree into component instances, following the mapping file.
+ *
+ * Nothing is written here. Each instance keeps the legacy item's UUID, so a
+ * repeated conversion produces the same tree and a component can always be
+ * traced to the item it came from.
+ */
+final class TreeConverter {
+
+  /**
+   * Prop refs by component id and prop name.
+   *
+   * @var array<string, array<string, string>>
+   */
+  private array $refs = [];
+
+  public function __construct(
+    private readonly EntityTypeManagerInterface $entityTypeManager,
+    private readonly ValueTransformer $transformer,
+  ) {}
+
+  /**
+   * Converts one tree.
+   *
+   * @return array{instances: list<array>, problems: list<string>, skipped: list<string>}
+   *   Instances are `{uuid, component, status, props, source}`, where props
+   *   are in the stored wrapper format (`{ref, value}`). A problem means the
+   *   tree must not be written; skipped items were left out on purpose.
+   */
+  public function convert(array $tree, ContentMapping $mapping, ContentEntityInterface $host): array {
+    $result = ['instances' => [], 'problems' => [], 'skipped' => []];
+    foreach ($mapping->prepend($host->getEntityTypeId(), $host->id()) as $entry) {
+      // Nothing in the legacy tree to take a UUID from: derive a stable one
+      // from the host and the component instead.
+      $item = [
+        'bundle' => 'prepend',
+        'id' => 0,
+        'uuid' => self::derivedUuid(sprintf('%s:%s:%s', $host->getEntityTypeId(), $host->id(), $entry['component'])),
+        'status' => TRUE,
+        'fields' => [],
+      ];
+      try {
+        $result['instances'][] = $this->instance($item, $entry, $mapping);
+      }
+      catch (\RuntimeException $e) {
+        $result['problems'][] = "prepend {$entry['component']}: {$e->getMessage()}";
+      }
+    }
+    foreach ($tree as $position => $item) {
+      if (!empty($item['missing'])) {
+        $result['problems'][] = sprintf('Item %d points at a missing revision (%s).', $position, $item['target_revision_id'] ?? '?');
+        continue;
+      }
+      $label = sprintf('%s %d', $item['bundle'], $item['id']);
+      $entry = $mapping->item($item['bundle']);
+      if ($entry === NULL) {
+        if ($mapping->unmapped() === 'skip') {
+          $result['skipped'][] = "$label (unmapped)";
+        }
+        else {
+          $result['problems'][] = "$label: no mapping for \"{$item['bundle']}\".";
+        }
+        continue;
+      }
+      if (!empty($entry['skip'])) {
+        $result['skipped'][] = $label;
+        continue;
+      }
+      try {
+        $result['instances'][] = $this->instance($item, $entry, $mapping);
+      }
+      catch (\RuntimeException $e) {
+        $result['problems'][] = "$label: {$e->getMessage()}";
+      }
+    }
+    return $result;
+  }
+
+  /**
+   * One component instance from one legacy item.
+   */
+  private function instance(array $item, array $entry, ContentMapping $mapping): array {
+    $component = $entry['component'];
+    $refs = $this->refs($component);
+    $props = [];
+    foreach ($entry['props'] ?? [] as $name => $spec) {
+      if (!isset($refs[$name])) {
+        throw new \RuntimeException("$component has no prop \"$name\".");
+      }
+      $value = $this->transformer->transform($spec, $item, $mapping);
+      if ($value !== NULL) {
+        $props[$name] = ['ref' => $refs[$name], 'value' => $value];
+      }
+    }
+    return [
+      'uuid' => $item['uuid'],
+      'component' => $component,
+      'status' => (bool) $item['status'],
+      'props' => $props,
+      'source' => ['bundle' => $item['bundle'], 'id' => $item['id'], 'spec' => $entry],
+    ];
+  }
+
+  /**
+   * A name-based UUID (version 5 layout), the same for the same name.
+   */
+  public static function derivedUuid(string $name): string {
+    $hash = sha1('neo_migrate:' . $name);
+    return sprintf('%s-%s-5%s-%x%s-%s',
+      substr($hash, 0, 8),
+      substr($hash, 8, 4),
+      substr($hash, 13, 3),
+      (hexdec(substr($hash, 16, 1)) & 0x3) | 0x8,
+      substr($hash, 17, 3),
+      substr($hash, 20, 12),
+    );
+  }
+
+  /**
+   * The ref of each of a component's props, from its stored schema.
+   *
+   * @return array<string, string>
+   */
+  public function refs(string $component): array {
+    if (!isset($this->refs[$component])) {
+      $entity = $this->entityTypeManager->getStorage('neo_component')->load($component);
+      if (!$entity) {
+        throw new \RuntimeException("No neo_component \"$component\".");
+      }
+      $schema = json_decode((string) $entity->get('schema'), TRUE) ?? [];
+      $this->refs[$component] = [];
+      foreach ($schema['properties'] ?? [] as $name => $property) {
+        $types = (array) ($property['type'] ?? 'string');
+        $this->refs[$component][$name] = $property['ref'] ?? reset($types);
+      }
+    }
+    return $this->refs[$component];
+  }
+
+}

@@ -25,8 +25,8 @@ Done when the phase's gate criteria are all met and written into `state.yml` —
 | 0 | Measure the legacy site: audit, inventory, URL list, production baseline | [phase-0.md](references/phase-0.md) | G0 |
 | 1 | Install Neo beside the legacy stack and move the admin (back theme, neo_toolbar); nothing public changes | [phase-1.md](references/phase-1.md) | G1 |
 | 2 | Mechanical conversions: icons, favicon, site settings, metatags, tree field | [phase-2.md](references/phase-2.md) | G2 |
-| 3 | Front theme and components, iterated against parity | not built yet | G3 |
-| 4 | Convert content into component trees, verify against the inventory | not built yet | G4 |
+| 3 | Front theme and components, iterated against parity; the content converter grows with them | [phase-3.md](references/phase-3.md) | G3 |
+| 4 | Convert all content into component trees, verify against the inventory | converter in [phase-3.md](references/phase-3.md); verification not built yet | G4 |
 | 5 | Cutover, teardown and release, rehearsed on a multidev | not built yet | R1–R4 |
 | 6 | Repeat on the next site; fleet go/no-go | not built yet | — |
 

@@ -78,6 +78,21 @@ services:
     class: Drupal\neo_migrate\Importer\ToolbarImporter
     arguments: ['@entity_type.manager', '@config.factory', '@config.storage.sync', '@neo_migrate.icon_resolver', '@neo_migrate.catalog']
 
+  neo_migrate.markup_rewriter:
+    class: Drupal\neo_migrate\Content\MarkupRewriter
+
+  neo_migrate.value_transformer:
+    class: Drupal\neo_migrate\Content\ValueTransformer
+    arguments: ['@neo_migrate.markup_rewriter']
+
+  neo_migrate.tree_converter:
+    class: Drupal\neo_migrate\Content\TreeConverter
+    arguments: ['@entity_type.manager', '@neo_migrate.value_transformer']
+
+  neo_migrate.tree_writer:
+    class: Drupal\neo_migrate\Writer\ComponentTreeWriter
+    arguments: ['@keyvalue', '@renderer']
+
   # Above the admin and default negotiators, below the AJAX base page one, so
   # an AJAX request keeps the theme of the page that made it.
   neo_migrate.preview_negotiator:

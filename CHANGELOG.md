@@ -1,5 +1,21 @@
 # Changelog
 
+## Content converts into component trees, one item type at a time
+
+**`drush neo-migrate:content` converts each host's legacy tree into its
+component tree field**, following the site's `migration/neo_migrate.yml`:
+which component each paragraph type becomes, where each prop comes from, how
+rich text is rewritten (legacy button classes to neo `btn` classes, paste
+leftovers unwrapped), and components to prepend on particular pages. An
+unmapped type stops that page and says why, so pages convert as their
+components are built. Every prop is read back through the component before the
+save, and the host validated; a save is a new revision that keeps the changed
+time and the alias. Re-runs report `unchanged`, and a tree edited since its
+conversion is a `conflict` until `--overwrite`.
+
+**A phase 3 reference** documents the component loop, the mapping file and the
+comparison of Neo sections with legacy ones.
+
 ## Parity compares margin-spaced legacy items with padding-spaced Neo sections
 
 **`box: painted` measures what a section paints** instead of its layout box —
