@@ -1,5 +1,14 @@
 # Changelog
 
+## Content type and vocabulary icons carry over
+
+**`drush neo-migrate:entity-icons`** copies the icon micon_content_type and
+micon_vocabulary gave each content type and vocabulary into neo_icon's own
+setting, mapping Font Awesome 4 names onto neo_icon's libraries where they can.
+It reads micon's setting while the module is installed and the sync directory
+once it is not. Uninstalling the micon modules at the cutover otherwise dropped
+the icons silently.
+
 ## The toolbar keeps to the legacy rail, in the Neo order
 
 **`neo-migrate:toolbar` orders the rail** as Neo sites have it — Home, then the

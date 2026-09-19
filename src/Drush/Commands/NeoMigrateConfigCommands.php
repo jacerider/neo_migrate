@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\neo_migrate\Drush\Commands;
 
+use Drupal\neo_migrate\Importer\EntityIconImporter;
 use Drupal\neo_migrate\Importer\FaviconImporter;
 use Drupal\neo_migrate\Importer\IconFieldImporter;
 use Drupal\neo_migrate\Importer\IconImporter;
@@ -45,6 +46,8 @@ final class NeoMigrateConfigCommands extends DrushCommands {
     private readonly FaviconImporter $faviconImporter,
     #[Autowire(service: 'neo_migrate.metatag_rewriter')]
     private readonly MetatagRewriter $metatagRewriter,
+    #[Autowire(service: 'neo_migrate.entity_icon_importer')]
+    private readonly EntityIconImporter $entityIconImporter,
   ) {
     parent::__construct();
   }
@@ -173,6 +176,21 @@ final class NeoMigrateConfigCommands extends DrushCommands {
     else {
       $this->io()->success('Libraries saved. Export config to keep them (their zips go to config/files).');
     }
+  }
+
+  /**
+   * Moves content type and vocabulary icons into neo_icon. Creates config.
+   *
+   * Run before the export that uninstalls micon_content_type and
+   * micon_vocabulary drops their settings.
+   */
+  #[CLI\Command(name: 'neo-migrate:entity-icons', aliases: ['nmei'])]
+  #[CLI\Option(name: 'dry-run', description: 'Report what would happen without saving.')]
+  #[CLI\Usage(name: 'drush neo-migrate:entity-icons', description: 'Copy every bundle icon.')]
+  public function entityIcons(array $options = ['dry-run' => FALSE]): void {
+    $report = $this->entityIconImporter->import((bool) $options['dry-run']);
+    $this->io()->table(['Bundle', 'micon icon', 'neo_icon icon', 'Action'], array_map(static fn ($row) => [$row['entity'], $row['legacy'], $row['icon'], $row['action']], $report));
+    $this->io()->success(($options['dry-run'] ? 'Dry run: nothing saved. ' : '') . count($report) . ' bundle icon(s).');
   }
 
   /**
