@@ -25,6 +25,11 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  * - `link`: a link field's first value: uri, title and options.
  * - `heading`: a heading built from several fields, named per part:
  *   `{transform: heading, supertitle: field_a, title: field_b}`.
+ * - `each`: nested items (a paragraphs field) as an array prop, one entry
+ *   per published item, each built from its own `props:` mapping:
+ *   `{from: field_items, transform: each, bundle: item, props: {…}}`.
+ *   The nested items obey the same rule as their parent: a filled field no
+ *   prop takes is an error unless listed under `ignore:`.
  */
 final class ValueTransformer {
 
@@ -59,6 +64,9 @@ final class ValueTransformer {
     if ($field === NULL) {
       throw new \RuntimeException(sprintf('%s has no field "%s".', $item['bundle'], $spec['from'] ?? ''));
     }
+    if (($spec['transform'] ?? NULL) === 'each') {
+      return $this->each($spec, $field['children'] ?? [], $mapping);
+    }
     $first = $field['items'][0] ?? NULL;
     return match ($spec['transform'] ?? 'string') {
       'markup' => $this->markup($first, $mapping),
@@ -81,6 +89,37 @@ final class ValueTransformer {
     $rules = $mapping->markup();
     $html = $this->markup->rewrite((string) ($first['value'] ?? ''), $rules);
     return $html === '' ? NULL : ['value' => $html, 'format' => $rules['format']];
+  }
+
+  /**
+   * Nested items as the entries of an array prop.
+   */
+  private function each(array $spec, array $children, ContentMapping $mapping): ?array {
+    $entries = [];
+    foreach ($children as $child) {
+      if (!empty($child['missing']) || empty($child['status'])) {
+        continue;
+      }
+      if (isset($spec['bundle']) && $child['bundle'] !== $spec['bundle']) {
+        throw new \RuntimeException(sprintf('Expected nested %s items, found %s %d.', $spec['bundle'], $child['bundle'], $child['id']));
+      }
+      $used = $spec['ignore'] ?? [];
+      $entry = [];
+      foreach ($spec['props'] ?? [] as $name => $sub) {
+        $used = array_merge($used, self::fields($sub));
+        $value = $this->transform($sub, $child, $mapping);
+        if ($value !== NULL) {
+          $entry[$name] = $value;
+        }
+      }
+      foreach ($child['fields'] as $fieldName => $field) {
+        if ((!empty($field['items']) || !empty($field['children'])) && !in_array($fieldName, $used, TRUE)) {
+          throw new \RuntimeException(sprintf('Nested %s %d: %s has a value that no prop takes.', $child['bundle'], $child['id'], $fieldName));
+        }
+      }
+      $entries[] = $entry;
+    }
+    return $entries ?: NULL;
   }
 
   /**

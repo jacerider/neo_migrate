@@ -145,6 +145,7 @@ final class ComponentTreeWriter {
             'boolean' => (bool) $got === (bool) ($expected['value'] ?? FALSE),
             'integer', 'number' => (string) $got === (string) ($expected['value'] ?? ''),
             'image', 'media', 'file', 'video', 'remote_video' => is_array($got) && (string) ($got['target_id'] ?? $got['entity_id'] ?? '') === (string) ($expected['target_id'] ?? ''),
+            'array' => is_array($got) && count($got) === count($expected) && $this->sameEntries(array_values($got), $expected),
             'link', 'url' => is_array($got) && (string) ($got['title'] ?? '') === (string) ($expected['title'] ?? '') && !empty($got['uri']),
             'heading' => is_array($got) && array_filter(ValueTransformer::HEADING_PARTS, static fn ($part) => trim((string) ($got[$part] ?? '')) !== (string) ($expected[$part]['value'] ?? '')) === [],
             default => $got !== NULL && $got !== '' && $got !== [],
@@ -156,6 +157,30 @@ final class ComponentTreeWriter {
       }
     });
     return $problems;
+  }
+
+  /**
+   * Whether each array entry reads back with the text it was written with.
+   *
+   * Compares the text values of each entry (`{value: …}` parts); nested media
+   * and links are left to the component's own rendering.
+   */
+  private function sameEntries(array $got, array $expected): bool {
+    foreach ($expected as $i => $entry) {
+      foreach ($entry as $key => $value) {
+        if (!is_array($value) || !array_key_exists('value', $value) || isset($value['format'])) {
+          continue;
+        }
+        $read = $got[$i][$key] ?? NULL;
+        if (!is_scalar($read) && !$read instanceof \Stringable) {
+          return FALSE;
+        }
+        if (trim((string) $read) !== trim((string) $value['value'])) {
+          return FALSE;
+        }
+      }
+    }
+    return TRUE;
   }
 
   /**

@@ -1,5 +1,12 @@
 # Changelog
 
+## Nested items convert into array props
+
+**The `each` transform turns nested items** — a paragraphs field inside a
+paragraph — **into an array prop**, one entry per published item, each built
+from its own `props:` mapping and held to the same rule: a filled field no
+prop takes stops the page. Read-back compares each entry's text.
+
 ## Headings and links convert, and empty fields stay empty
 
 **New transforms:** `heading` builds a heading prop from one legacy field per
