@@ -24,6 +24,9 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  *   so a file used twice becomes one library item. With `as: <key>`, every
  *   value of the field, as an array prop's entries `{<key>: <media>}`.
  * - `link`: a link field's first value: uri, title and options.
+ * - `number`: a number from the first value's `key` (default `value`),
+ *   divided by `divide` and rounded: `{transform: number, key: rating,
+ *   divide: 20}` turns a 0–100 rating into 0–5 stars.
  * - `heading`: a heading built from several fields, named per part:
  *   `{transform: heading, supertitle: field_a, title: field_b}`.
  * - `each`: nested items (a paragraphs field) as an array prop, one entry
@@ -77,6 +80,9 @@ final class ValueTransformer {
       'image_media' => isset($spec['as'])
         ? (array_values(array_filter(array_map(fn ($value) => ($media = $this->imageMedia($value, $mapping)) ? [$spec['as'] => $media] : NULL, $field['items'] ?? []))) ?: NULL)
         : $this->imageMedia($first, $mapping),
+      'number' => !isset($first[$spec['key'] ?? 'value']) || $first[$spec['key'] ?? 'value'] === '' ? NULL : [
+        'value' => (int) round((float) $first[$spec['key'] ?? 'value'] / (float) ($spec['divide'] ?? 1)),
+      ],
       'link' => empty($first['uri']) ? NULL : [
         'uri' => $first['uri'],
         'title' => (string) ($first['title'] ?? ''),

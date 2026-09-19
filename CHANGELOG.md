@@ -1,5 +1,11 @@
 # Changelog
 
+## Numbers convert
+
+**The `number` transform** reads a value from any key of the first field item,
+divides and rounds it: `{transform: number, key: rating, divide: 20}` turns a
+0–100 rating into 0–5 stars.
+
 ## Array entries keep their images, and bundles can carry fixed props
 
 **Array props are written with each entry's "use the default" option off**
