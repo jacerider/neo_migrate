@@ -180,13 +180,18 @@ final class NeoMigrateConfigCommands extends DrushCommands {
    */
   #[CLI\Command(name: 'neo-migrate:toolbar', aliases: ['nmt'])]
   #[CLI\Option(name: 'toolbar', description: 'The neo_toolbar to add items to.')]
-  #[CLI\Option(name: 'theme', description: 'Show the toolbar only on this theme (the admin theme, while the public site is still legacy); "any" shows it everywhere again.')]
+  #[CLI\Option(name: 'theme', description: 'Show the toolbar only on this theme; "any" shows it everywhere again.')]
+  #[CLI\Option(name: 'except', description: 'Show the toolbar on every theme but this one: the legacy front theme, while the public site is still legacy.')]
   #[CLI\Option(name: 'dry-run', description: 'Report what would happen without saving.')]
   #[CLI\Usage(name: 'drush neo-migrate:toolbar --dry-run', description: 'Preview the mapping.')]
-  #[CLI\Usage(name: 'drush neo-migrate:toolbar --theme=back', description: 'Import, and show the toolbar only in the back theme.')]
-  public function toolbar(array $options = ['toolbar' => 'default', 'theme' => NULL, 'dry-run' => FALSE]): void {
+  #[CLI\Usage(name: 'drush neo-migrate:toolbar --except=client', description: 'Import, and keep the toolbar off the legacy client theme.')]
+  public function toolbar(array $options = ['toolbar' => 'default', 'theme' => NULL, 'except' => NULL, 'dry-run' => FALSE]): void {
     $report = $this->toolbarImporter->import($options['toolbar'], (bool) $options['dry-run']);
-    if ($options['theme']) {
+    if ($options['except']) {
+      $this->toolbarImporter->limitToTheme($options['toolbar'], (string) $options['except'], (bool) $options['dry-run'], TRUE);
+      $this->io()->text("Toolbar shown on every theme but {$options['except']}.");
+    }
+    elseif ($options['theme']) {
       $theme = $options['theme'] === 'any' ? NULL : (string) $options['theme'];
       $this->toolbarImporter->limitToTheme($options['toolbar'], $theme, (bool) $options['dry-run']);
       $this->io()->text($theme ? "Toolbar shown only on the $theme theme." : 'Toolbar shown on every theme.');
@@ -197,7 +202,7 @@ final class NeoMigrateConfigCommands extends DrushCommands {
     );
     $roles = $this->toolbarImporter->grantAccess((bool) $options['dry-run']);
     $this->io()->text('Roles given "access neo_toolbar" because they had "access escort": ' . (implode(', ', $roles) ?: 'none'));
-    $problems = array_filter($report, static fn ($row) => in_array($row['action'], ['missing', 'unmapped'], TRUE) || $row['note'] !== '' && $row['action'] !== 'covered');
+    $problems = array_filter($report, static fn ($row) => in_array($row['action'], ['missing', 'unmapped'], TRUE) || $row['note'] !== '' && !in_array($row['action'], ['covered', 'removed'], TRUE));
     if ($options['dry-run']) {
       $this->io()->note('Dry run: nothing saved.');
     }

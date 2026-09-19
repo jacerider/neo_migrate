@@ -29,10 +29,11 @@ Neo's modules and themes go in; the public site and the legacy admin keep workin
    ddev drush pmu escort micon_local_task -y
    ddev drush en neo_toolbar neo_icon_local_task neo_icon_admin -y
    ddev drush config:set system.theme admin back -y
-   ddev drush neo-migrate:toolbar --theme=back
+   ddev drush neo-migrate:toolbar --except=client
    ```
    - `neo-migrate:toolbar` rebuilds escort's items as `escort_<id>` toolbar items (links, "manage" links to the filtered content list, "add" as a create item), maps their Font Awesome 4 icons, and grants `access neo_toolbar` to every role that had `access escort`. Once escort is uninstalled it reads both from the sync directory — so run it **before** the next `cex`, which drops escort's config and permission from the sync directory. If an export already happened, `git checkout` the role files and run it again.
-   - `--theme=back` shows the toolbar only in the back theme. neo_toolbar's assets are built for Neo themes only, and over the legacy front theme it renders unstyled; editors on public pages get the legacy theme's own local-task tabs instead. Clear it with `--theme=any` at the front cutover.
+   - `--except=<legacy front theme>` shows the toolbar on every theme but the legacy one: neo_toolbar's assets are built for Neo themes only, and over the legacy front theme it renders unstyled. Editors get it in the back theme and on the Neo front theme in the preview. The condition names no theme dependency, so uninstalling the legacy theme later leaves it alone; drop it in R4.
+   - The rail is ordered the Neo way: Home, then the create menu, then the rest (escort's order); at the end, everything else, then the user menu last. neo_toolbar's default rail links (Content, User Accounts) are removed: the legacy toolbar decides which links the rail carries.
    - A "same label" note means an escort link and a stock neo_toolbar item share a name. Decide which one editors need now. Example: escort's "Settings" opened the legacy site-settings form that still feeds the public footer, while neo's opens neo_site_settings, which stays empty until phase 2. Disable neo's item until then.
    - A legacy favicon module that maps favicons per theme (real_favicon) needs the back theme added, or admin pages lose the favicon.
 
@@ -44,7 +45,7 @@ Neo's modules and themes go in; the public site and the legacy admin keep workin
 
 - Parity: a fresh local capture against `prod-baseline` still passes every section, with no missing words and no head or status differences. The legacy theme's `detect` selector in `parity.yml` must match only the legacy theme — the Neo front theme reuses classes such as `.section.page`. Expected difference: `/user/login` now shows neo_back's login screen.
 - Admin smoke test in the back theme: the toolbar items, node edit forms with the legacy body field, and the webform UI's "Add element" dialog.
-- Public pages as a logged-in editor: no toolbar, the legacy local-task tabs, nothing else changed.
+- Public pages as a logged-in editor: no toolbar on the legacy theme (it shows with the Neo preview on), the legacy local-task tabs, nothing else changed.
 - The preview works both ways, and the banner shows — on the multidev too, not only locally.
 - `config:status` reports no differences.
 - Deployed to the multidev (push the branch, then `terminus drush <site>.<env> -- updb -y`, `cim -y`, `cr`), with parity against `prod-baseline` repeated on the multidev, and an admin page checked there with aggregation on: `Drupal` is defined, dropbuttons are initialised, a dialog opens.

@@ -76,7 +76,7 @@ services:
 
   neo_migrate.toolbar_importer:
     class: Drupal\neo_migrate\Importer\ToolbarImporter
-    arguments: ['@entity_type.manager', '@config.factory', '@config.storage.sync', '@neo_migrate.icon_resolver', '@neo_migrate.catalog']
+    arguments: ['@entity_type.manager', '@config.factory', '@config.storage.sync', '@neo_migrate.icon_resolver', '@neo_migrate.catalog', '@extension.list.module']
 
   neo_migrate.markup_rewriter:
     class: Drupal\neo_migrate\Content\MarkupRewriter

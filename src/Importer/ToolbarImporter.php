@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Drupal\neo_migrate\Importer;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Config\FileStorage;
 use Drupal\Core\Config\StorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Extension\ModuleExtensionList;
 use Drupal\neo_migrate\IconNameResolver;
 use Drupal\neo_migrate\LegacyCatalog;
 
@@ -18,7 +20,9 @@ use Drupal\neo_migrate\LegacyCatalog;
  * of escort's uninstall. Items neo_toolbar's own install already provides —
  * the user menu, local tasks, local actions, the home link — are reported as
  * covered rather than duplicated. Created items are named `escort_<id>`, so a
- * second run updates them instead of adding more.
+ * second run updates them instead of adding more. The links neo_toolbar puts
+ * on the rail by default (Content, User Accounts) are removed: the legacy
+ * toolbar decides which links the rail carries.
  */
 final class ToolbarImporter {
 
@@ -33,6 +37,7 @@ final class ToolbarImporter {
     private readonly StorageInterface $syncStorage,
     private readonly IconNameResolver $icons,
     private readonly LegacyCatalog $catalog,
+    private readonly ModuleExtensionList $moduleList,
   ) {}
 
   /**
@@ -117,20 +122,96 @@ final class ToolbarImporter {
       }
       $report[] = $row;
     }
+    $report = array_merge($report, $this->removeDefaultLinks($toolbar, $dryRun));
+    $this->order($toolbar, $dryRun);
     return $report;
   }
 
   /**
-   * Shows a toolbar only on one theme, or everywhere again.
+   * Removes the links neo_toolbar's install put on the rail.
+   *
+   * Only items neo_toolbar ships (its install config) and only link items on
+   * the rail itself: the user menu's own links, the home item and anything a
+   * site added stay.
+   *
+   * @return list<array>
+   *   One report row per removed item.
+   */
+  private function removeDefaultLinks(string $toolbar, bool $dryRun): array {
+    $storage = $this->entityTypeManager->getStorage('neo_toolbar_item');
+    $defaults = new FileStorage($this->moduleList->getPath('neo_toolbar') . '/config/install');
+    $report = [];
+    foreach ($defaults->listAll('neo_toolbar.neo_toolbar_item.') as $name) {
+      $default = $defaults->read($name) ?: [];
+      if (($default['plugin'] ?? '') !== 'link' || !in_array($default['region'] ?? '', ['side_start', 'side_end'], TRUE)) {
+        continue;
+      }
+      $item = $storage->load($default['id'] ?? '');
+      if (!$item || $item->get('toolbar') !== $toolbar) {
+        continue;
+      }
+      $report[] = ['escort' => '', 'plugin' => 'link', 'action' => 'removed', 'item' => $item->id(), 'note' => sprintf('neo_toolbar\'s default "%s" link; the legacy toolbar had none', $item->label())];
+      if (!$dryRun) {
+        $item->delete();
+      }
+    }
+    return $report;
+  }
+
+  /**
+   * Orders the rail the way Neo sites have it.
+   *
+   * The start of the rail: Home (the favicon item), then the create menu, then
+   * the rest in their current order — neo_toolbar's own items, then the
+   * imported ones in escort's order. The end of the rail: everything else, then
+   * the user menu, always last. Escort put its create link wherever a site
+   * chose; Neo puts it under Home.
+   */
+  private function order(string $toolbar, bool $dryRun): void {
+    $storage = $this->entityTypeManager->getStorage('neo_toolbar_item');
+    $items = $storage->loadByProperties(['toolbar' => $toolbar]);
+    uasort($items, static fn ($a, $b) => [(int) $a->get('weight'), $a->id()] <=> [(int) $b->get('weight'), $b->id()]);
+    $rank = [
+      'side_start' => ['favicon' => 0, 'create' => 1],
+      'side_end' => ['user' => 1],
+    ];
+    foreach ($rank as $region => $ranks) {
+      $inRegion = array_values(array_filter($items, static fn ($item) => $item->get('region') === $region));
+      $default = $region === 'side_start' ? 2 : 0;
+      // A stable sort: items of the same rank keep their current order.
+      $keyed = [];
+      foreach ($inRegion as $position => $item) {
+        $keyed[] = [$ranks[$item->get('plugin')] ?? $default, $position, $item];
+      }
+      sort($keyed);
+      foreach ($keyed as $weight => [, , $item]) {
+        if ((int) $item->get('weight') !== $weight) {
+          $item->set('weight', $weight);
+          if (!$dryRun) {
+            $item->save();
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Shows a toolbar only on one theme, on all but one, or everywhere again.
    *
    * neo_toolbar's assets are built for Neo themes only; over a legacy front
-   * theme it renders unstyled. While the admin has moved and the public site
-   * has not, the toolbar is limited to the admin theme.
+   * theme it renders unstyled. While the public site is still legacy the
+   * toolbar is kept off the legacy front theme (`$except`), so editors have it
+   * on the admin and on the Neo front theme in the preview.
    *
    * @param string|null $theme
-   *   The theme to limit it to, or NULL to show it on every theme.
+   *   The theme to limit it to — or, with $except, to keep it off — or NULL to
+   *   show it on every theme.
+   * @param bool $dryRun
+   *   Report only.
+   * @param bool $except
+   *   Show it on every theme but $theme.
    */
-  public function limitToTheme(string $toolbar, ?string $theme, bool $dryRun = FALSE): void {
+  public function limitToTheme(string $toolbar, ?string $theme, bool $dryRun = FALSE, bool $except = FALSE): void {
     $entity = $this->entityTypeManager->getStorage('neo_toolbar')->load($toolbar);
     if (!$entity) {
       throw new \RuntimeException("No neo_toolbar \"$toolbar\".");
@@ -139,7 +220,7 @@ final class ToolbarImporter {
     $visibility = $entity->get('visibility') ?: [];
     unset($visibility['current_theme']);
     if ($theme !== NULL) {
-      $visibility['current_theme'] = ['id' => 'current_theme', 'theme' => $theme, 'negate' => FALSE];
+      $visibility['current_theme'] = ['id' => 'current_theme', 'theme' => $theme, 'negate' => $except];
     }
     if (!$dryRun) {
       $entity->set('visibility', $visibility)->save();

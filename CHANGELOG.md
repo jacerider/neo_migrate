@@ -1,5 +1,17 @@
 # Changelog
 
+## The toolbar keeps to the legacy rail, in the Neo order
+
+**`neo-migrate:toolbar` orders the rail** as Neo sites have it — Home, then the
+create menu, then the rest; at the end, everything else, then the user menu
+last — instead of appending the imported items after neo_toolbar's own, which
+put a legacy Settings link below the user menu. **neo_toolbar's default rail
+links (Content, User Accounts) are removed**, since the legacy toolbar decides
+which links the rail carries; the user menu's own links and anything a site
+added stay. **`--except=<theme>`** shows the toolbar on every theme but the
+legacy front theme, so editors have it on the Neo front theme in the preview
+too.
+
 ## Hidden toolbars stop displacing captures
 
 **A capture re-measures Drupal's displacement after hiding.** neo_toolbar marks
