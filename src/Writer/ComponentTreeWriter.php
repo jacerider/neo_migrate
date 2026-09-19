@@ -11,6 +11,7 @@ use Drupal\Core\KeyValueStore\KeyValueFactoryInterface;
 use Drupal\Core\Render\RenderContext;
 use Drupal\Core\Render\RendererInterface;
 use Drupal\neo_migrate\Content\MarkupRewriter;
+use Drupal\neo_migrate\Content\ValueTransformer;
 
 /**
  * Writes converted component instances into a host's tree field.
@@ -137,12 +138,15 @@ final class ComponentTreeWriter {
         foreach ($instance['props'] as $name => $prop) {
           $got = $values[$name] ?? NULL;
           $expected = $prop['value'];
-          $ok = match ($prop['ref']) {
+          $hidden = !empty($prop['options'][$name]['empty']);
+          $ok = $hidden ? in_array($got, [NULL, '', []], TRUE) : match ($prop['ref']) {
             'markup' => MarkupRewriter::text((string) $got) === MarkupRewriter::text((string) $expected['value']),
             'string' => (string) $got === (string) ($expected['value'] ?? ''),
             'boolean' => (bool) $got === (bool) ($expected['value'] ?? FALSE),
             'integer', 'number' => (string) $got === (string) ($expected['value'] ?? ''),
             'image', 'media', 'file', 'video', 'remote_video' => is_array($got) && (string) ($got['target_id'] ?? $got['entity_id'] ?? '') === (string) ($expected['target_id'] ?? ''),
+            'link', 'url' => is_array($got) && (string) ($got['title'] ?? '') === (string) ($expected['title'] ?? '') && !empty($got['uri']),
+            'heading' => is_array($got) && array_filter(ValueTransformer::HEADING_PARTS, static fn ($part) => trim((string) ($got[$part] ?? '')) !== (string) ($expected[$part]['value'] ?? '')) === [],
             default => $got !== NULL && $got !== '' && $got !== [],
           };
           if (!$ok) {

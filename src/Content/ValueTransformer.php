@@ -22,8 +22,16 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  * - `image_media`: an image field's file, as an image media entity. A media
  *   entity already holding the same file with the same alt text is reused,
  *   so a file used twice becomes one library item.
+ * - `link`: a link field's first value: uri, title and options.
+ * - `heading`: a heading built from several fields, named per part:
+ *   `{transform: heading, supertitle: field_a, title: field_b}`.
  */
 final class ValueTransformer {
+
+  /**
+   * The text parts of a heading prop.
+   */
+  public const HEADING_PARTS = ['supertitle', 'title', 'subtitle'];
 
   public function __construct(
     private readonly MarkupRewriter $markup,
@@ -44,6 +52,9 @@ final class ValueTransformer {
     if (array_key_exists('value', $spec)) {
       return $spec['value'];
     }
+    if (($spec['transform'] ?? NULL) === 'heading') {
+      return $this->heading($spec, $item);
+    }
     $field = $item['fields'][$spec['from'] ?? ''] ?? NULL;
     if ($field === NULL) {
       throw new \RuntimeException(sprintf('%s has no field "%s".', $item['bundle'], $spec['from'] ?? ''));
@@ -54,6 +65,11 @@ final class ValueTransformer {
       'string' => $first === NULL || trim((string) ($first['value'] ?? '')) === '' ? NULL : ['value' => trim((string) $first['value'])],
       'flag' => ['value' => isset($spec['when']) ? (string) ($first['value'] ?? '') === (string) $spec['when'] : !empty($first['value'])],
       'image_media' => $this->imageMedia($first, $mapping),
+      'link' => empty($first['uri']) ? NULL : [
+        'uri' => $first['uri'],
+        'title' => (string) ($first['title'] ?? ''),
+        'options' => is_array($first['options'] ?? NULL) ? $first['options'] : [],
+      ],
       default => throw new \RuntimeException(sprintf('Unknown transform "%s".', $spec['transform'])),
     };
   }
@@ -65,6 +81,33 @@ final class ValueTransformer {
     $rules = $mapping->markup();
     $html = $this->markup->rewrite((string) ($first['value'] ?? ''), $rules);
     return $html === '' ? NULL : ['value' => $html, 'format' => $rules['format']];
+  }
+
+  /**
+   * The legacy fields a mapping entry reads.
+   *
+   * @return list<string>
+   */
+  public static function fields(array $spec): array {
+    if (($spec['transform'] ?? NULL) === 'heading') {
+      return array_values(array_filter(array_intersect_key($spec, array_flip(self::HEADING_PARTS))));
+    }
+    return isset($spec['from']) ? [$spec['from']] : [];
+  }
+
+  /**
+   * A heading from one field per part; empty when every part is.
+   */
+  private function heading(array $spec, array $item): ?array {
+    $value = [];
+    foreach (self::HEADING_PARTS as $part) {
+      $field = $spec[$part] ?? NULL;
+      if ($field !== NULL && !isset($item['fields'][$field])) {
+        throw new \RuntimeException(sprintf('%s has no field "%s".', $item['bundle'], $field));
+      }
+      $value[$part] = ['value' => $field ? trim((string) ($item['fields'][$field]['items'][0]['value'] ?? '')) : ''];
+    }
+    return implode('', array_column($value, 'value')) === '' ? NULL : $value;
   }
 
   /**

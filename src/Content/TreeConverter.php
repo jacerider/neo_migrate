@@ -103,18 +103,31 @@ final class TreeConverter {
       }
       $value = $this->transformer->transform($spec, $item, $mapping);
       if ($value === NULL) {
+        // An unset prop renders the component's example, so an empty legacy
+        // field becomes a hidden prop: the editor's "Hide".
+        $props[$name] = ['ref' => $refs[$name], 'value' => [], 'options' => [$name => ['empty' => TRUE, 'default' => FALSE]]];
         continue;
       }
       $props[$name] = ['ref' => $refs[$name], 'value' => $value];
       // Media props start out showing their default instead of the stored
-      // value; a converted value must switch that off to be seen.
+      // value, and a heading's parts fall back to their examples: a converted
+      // value switches both off to be what is seen.
       if (in_array($refs[$name], self::MEDIA_REFS, TRUE)) {
         $props[$name]['options'] = [$name => ['empty' => FALSE, 'default' => FALSE]];
+      }
+      if ($refs[$name] === 'heading') {
+        $props[$name]['options'] = [$name => ['default' => FALSE, 'empty' => FALSE]];
+        foreach (ValueTransformer::HEADING_PARTS as $part) {
+          $props[$name]['options']["$name~$part"] = ['default' => FALSE, 'empty' => ($value[$part]['value'] ?? '') === ''];
+        }
       }
     }
     // Nothing is dropped silently: a field holding a value must feed a prop
     // or be listed under `ignore`.
-    $used = array_merge(array_column($entry['props'] ?? [], 'from'), $entry['ignore'] ?? []);
+    $used = $entry['ignore'] ?? [];
+    foreach ($entry['props'] ?? [] as $spec) {
+      $used = array_merge($used, ValueTransformer::fields($spec));
+    }
     foreach ($item['fields'] as $fieldName => $field) {
       $filled = !empty($field['items']) || !empty($field['children']);
       if ($filled && !in_array($fieldName, $used, TRUE)) {

@@ -1,5 +1,15 @@
 # Changelog
 
+## Headings and links convert, and empty fields stay empty
+
+**New transforms:** `heading` builds a heading prop from one legacy field per
+part (supertitle, title, subtitle), with each part's example fallback
+switched off, and `link` carries a link field's uri, title and options.
+**A mapped prop whose legacy field is empty is written hidden** (the editor's
+"Hide") instead of left unset, which rendered the component's example — a
+button the legacy item never had. Read-back checks link titles and heading
+parts, and that a hidden prop renders nothing.
+
 ## Images convert to media, and nothing is dropped silently
 
 **New transforms:** `image_media` turns an image field's file into an image
