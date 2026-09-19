@@ -71,6 +71,77 @@ export async function capture(config, { target: name, label, only, widths }) {
 }
 
 /**
+ * Loads every page once so the server builds what it builds on first request.
+ *
+ * A freshly cut-over environment has no image derivatives: the first request
+ * for a page converts every image it shows, which on a large photo can take
+ * longer than the request is allowed and answer 502. Visiting each page
+ * beforehand — one at a time, so the conversions do not pile up — leaves the
+ * derivatives on disk. Pages are retried while they still fail, because a
+ * timed-out conversion usually finishes in the background and the next
+ * request finds it.
+ *
+ * @return {Promise<{pages: Array, passes: number}>}
+ *   The pages that still failed, and how many passes it took.
+ */
+export async function warm(config, { target: name, only, widths, passes = 3 }) {
+  const target = config.targets[name];
+  if (!target) {
+    throw new Error(`Unknown target "${name}". Known: ${Object.keys(config.targets).join(', ')}`);
+  }
+  const base = target.url;
+  const browser = await chromium.launch();
+  const session = target.login ? await startSession(browser, config, target) : undefined;
+  let jobs = [];
+  for (const url of loadUrls(config).filter((u) => u.check === 'visual' && (!only || only.includes(u.path)))) {
+    for (const width of widths ?? config.widths) {
+      jobs.push({ url, width });
+    }
+  }
+  let pass = 0;
+  while (jobs.length && pass < passes) {
+    pass++;
+    const failed = [];
+    for (const job of jobs) {
+      const context = await browser.newContext({ storageState: session, viewport: { width: job.width, height: config.height }, reducedMotion: 'reduce', ignoreHTTPSErrors: true });
+      const page = await context.newPage();
+      const broken = [];
+      page.on('response', (response) => {
+        if (response.status() >= 400 && /\.(avif|webp|png|jpe?g|gif|svg)/i.test(response.url())) {
+          broken.push(`${response.status()} ${response.url()}`);
+        }
+      });
+      let status = 0;
+      try {
+        const response = await page.goto(base + job.url.path, { waitUntil: 'load', timeout: 120000 });
+        status = response?.status() ?? 0;
+        await page.evaluate(() => new Promise((resolve) => { window.scrollTo(0, document.body.scrollHeight); setTimeout(resolve, 500); }));
+        await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+      }
+      catch (error) {
+        status = status || -1;
+        broken.push(String(error).split('\n')[0]);
+      }
+      await context.close();
+      // Warming is about what the server has to build, not about who may see
+      // it: a 403 (an unpublished page to a visitor) or a 404 is an answer.
+      // Only a server error or a broken image is worth another pass.
+      const ok = status > 0 && status < 500 && !broken.length;
+      process.stdout.write(`[pass ${pass}] ${job.url.path} @${job.width} — ${ok ? (status === 200 ? 'ok' : `ok (${status})`) : `${status}${broken.length ? `, ${broken.length} image(s) failed` : ''}`}\n`);
+      if (!ok) {
+        failed.push({ ...job, status, broken });
+      }
+    }
+    jobs = failed.map(({ url, width }) => ({ url, width }));
+    if (jobs.length && pass < passes) {
+      process.stdout.write(`${jobs.length} page view(s) to retry.\n`);
+    }
+  }
+  await browser.close();
+  return { pages: jobs, passes: pass };
+}
+
+/**
  * One URL at one width: full-page shot, section boxes, text, meta, styles.
  */
 async function capturePage(browser, config, { base, session, hide }, dir, { url, width }) {

@@ -1,5 +1,14 @@
 # Changelog
 
+## A cut-over environment can be warmed before it is captured
+
+**`cli.mjs warm --target=<name>`** loads every page once, one at a time, and
+retries what fails. An environment that has just switched to the Neo theme
+holds no image derivatives: the first request for a page converts every photo
+it shows, and a large one outlasts the request — the server answers 502 and the
+page is captured with grey boxes where the photos belong. Warming first leaves
+the derivatives on disk.
+
 ## Content type and vocabulary icons carry over
 
 **`drush neo-migrate:entity-icons`** copies the icon micon_content_type and

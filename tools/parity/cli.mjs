@@ -18,7 +18,7 @@
  */
 import { parseArgs } from 'node:util';
 import { loadConfig } from './lib/config.mjs';
-import { capture } from './lib/capture.mjs';
+import { capture, warm } from './lib/capture.mjs';
 import { compare } from './lib/compare.mjs';
 import { probe } from './lib/probe.mjs';
 
@@ -40,7 +40,7 @@ const { values, positionals } = parseArgs({
 
 const [command, ...args] = positionals;
 const usage = () => {
-  console.log('Usage:\n  cli.mjs capture --target=<name> --label=<label> [--only=/a,/b] [--widths=375,1440]\n  cli.mjs compare <labelA> <labelB> [--list]\n  cli.mjs probe --target=<name> [--path=/] [--width=1440] [--depth=3] <selector>');
+  console.log('Usage:\n  cli.mjs capture --target=<name> --label=<label> [--only=/a,/b] [--widths=375,1440]\n  cli.mjs warm --target=<name> [--only=/a,/b] [--widths=375,1440]\n  cli.mjs compare <labelA> <labelB> [--list]\n  cli.mjs probe --target=<name> [--path=/] [--width=1440] [--depth=3] <selector>');
 };
 
 try {
@@ -60,6 +60,16 @@ try {
     const errors = manifest.pages.filter((p) => p.error);
     console.log(`\nCaptured ${manifest.pages.length - errors.length} page views of ${values.target} as "${values.label}"${errors.length ? `, ${errors.length} failed` : ''}.`);
     process.exit(errors.length ? 2 : 0);
+  }
+  if (command === 'warm') {
+    if (!values.target) throw new Error('warm needs --target.');
+    const { pages, passes } = await warm(config, {
+      target: values.target,
+      only: values.only?.split(',').map((p) => p.trim()),
+      widths: values.widths?.split(',').map(Number),
+    });
+    console.log(`\nWarmed ${values.target} in ${passes} pass(es)${pages.length ? `; ${pages.length} page view(s) still failing` : '; every page view answered, with its images'}.`);
+    process.exit(pages.length ? 2 : 0);
   }
   if (command === 'compare') {
     if (args.length !== 2) throw new Error('compare needs two capture labels.');
