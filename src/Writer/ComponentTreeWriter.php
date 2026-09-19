@@ -60,19 +60,24 @@ final class ComponentTreeWriter {
 
     $list = $host->get($field);
     $list->setValue(NULL);
-    /** @var \Drupal\neo_alchemist\Plugin\Field\FieldType\ComponentTreeItem $item */
-    $item = $list->appendItem();
-    foreach ($instances as $instance) {
-      $item->addComponent($instance['uuid'], $instance['component'], [
-        'status' => $instance['status'] ? 1 : 0,
-        'props' => $instance['props'],
-      ]);
+    $problems = [];
+    // Nothing to write leaves the field empty rather than holding an empty tree.
+    if ($instances) {
+      /** @var \Drupal\neo_alchemist\Plugin\Field\FieldType\ComponentTreeItem $item */
+      $item = $list->appendItem();
+      foreach ($instances as $instance) {
+        $item->addComponent($instance['uuid'], $instance['component'], [
+          'status' => $instance['status'] ? 1 : 0,
+          'props' => $instance['props'],
+        ]);
+      }
+      $problems = $this->readBack($item, $instances);
     }
-
-    $problems = $this->readBack($item, $instances);
+    // Only the tree field is validated: a legacy field may already hold
+    // something its settings no longer allow, which is not this run's to fix.
     // neo_alchemist's tree constraint renders prop values, which needs a
     // render context outside a request.
-    $violations = $this->renderer->executeInRenderContext(new RenderContext(), static fn () => $host->validate());
+    $violations = $this->renderer->executeInRenderContext(new RenderContext(), static fn () => $list->validate());
     foreach ($violations as $violation) {
       $problems[] = sprintf('%s: %s', $violation->getPropertyPath(), strip_tags((string) $violation->getMessage()));
     }
@@ -135,6 +140,9 @@ final class ComponentTreeWriter {
           $ok = match ($prop['ref']) {
             'markup' => MarkupRewriter::text((string) $got) === MarkupRewriter::text((string) $expected['value']),
             'string' => (string) $got === (string) ($expected['value'] ?? ''),
+            'boolean' => (bool) $got === (bool) ($expected['value'] ?? FALSE),
+            'integer', 'number' => (string) $got === (string) ($expected['value'] ?? ''),
+            'image', 'media', 'file', 'video', 'remote_video' => is_array($got) && (string) ($got['target_id'] ?? $got['entity_id'] ?? '') === (string) ($expected['target_id'] ?? ''),
             default => $got !== NULL && $got !== '' && $got !== [],
           };
           if (!$ok) {

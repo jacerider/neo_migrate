@@ -17,6 +17,11 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 final class TreeConverter {
 
   /**
+   * Prop refs whose shapes are filled from the media library.
+   */
+  public const MEDIA_REFS = ['image', 'media', 'file', 'video', 'remote_video'];
+
+  /**
    * Prop refs by component id and prop name.
    *
    * @var array<string, array<string, string>>
@@ -36,7 +41,7 @@ final class TreeConverter {
    *   are in the stored wrapper format (`{ref, value}`). A problem means the
    *   tree must not be written; skipped items were left out on purpose.
    */
-  public function convert(array $tree, ContentMapping $mapping, ContentEntityInterface $host): array {
+  public function convert(array $tree, ContentMapping $mapping, ContentEntityInterface $host, bool $skipUnmapped = FALSE): array {
     $result = ['instances' => [], 'problems' => [], 'skipped' => []];
     foreach ($mapping->prepend($host->getEntityTypeId(), $host->id()) as $entry) {
       // Nothing in the legacy tree to take a UUID from: derive a stable one
@@ -63,7 +68,7 @@ final class TreeConverter {
       $label = sprintf('%s %d', $item['bundle'], $item['id']);
       $entry = $mapping->item($item['bundle']);
       if ($entry === NULL) {
-        if ($mapping->unmapped() === 'skip') {
+        if ($skipUnmapped || $mapping->unmapped() === 'skip') {
           $result['skipped'][] = "$label (unmapped)";
         }
         else {
@@ -97,8 +102,23 @@ final class TreeConverter {
         throw new \RuntimeException("$component has no prop \"$name\".");
       }
       $value = $this->transformer->transform($spec, $item, $mapping);
-      if ($value !== NULL) {
-        $props[$name] = ['ref' => $refs[$name], 'value' => $value];
+      if ($value === NULL) {
+        continue;
+      }
+      $props[$name] = ['ref' => $refs[$name], 'value' => $value];
+      // Media props start out showing their default instead of the stored
+      // value; a converted value must switch that off to be seen.
+      if (in_array($refs[$name], self::MEDIA_REFS, TRUE)) {
+        $props[$name]['options'] = [$name => ['empty' => FALSE, 'default' => FALSE]];
+      }
+    }
+    // Nothing is dropped silently: a field holding a value must feed a prop
+    // or be listed under `ignore`.
+    $used = array_merge(array_column($entry['props'] ?? [], 'from'), $entry['ignore'] ?? []);
+    foreach ($item['fields'] as $fieldName => $field) {
+      $filled = !empty($field['items']) || !empty($field['children']);
+      if ($filled && !in_array($fieldName, $used, TRUE)) {
+        throw new \RuntimeException("$fieldName has a value that no prop takes (map it, or list it under ignore).");
       }
     }
     return [

@@ -83,7 +83,7 @@ services:
 
   neo_migrate.value_transformer:
     class: Drupal\neo_migrate\Content\ValueTransformer
-    arguments: ['@neo_migrate.markup_rewriter']
+    arguments: ['@neo_migrate.markup_rewriter', '@entity_type.manager']
 
   neo_migrate.tree_converter:
     class: Drupal\neo_migrate\Content\TreeConverter

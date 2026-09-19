@@ -28,6 +28,7 @@ use Drupal\Component\Serialization\Yaml;
  *     component: text_s1
  *     props:
  *       content: { from: field_text, transform: markup }
+ *     ignore: [field_legacy_only]   # filled fields no prop takes
  * @endcode
  */
 final class ContentMapping {
@@ -125,6 +126,20 @@ final class ContentMapping {
       'unwrap' => $markup['unwrap'] ?? [],
       'drop' => $markup['attributes']['drop'] ?? [],
     ];
+  }
+
+  /**
+   * The media bundle and source field an image (or other file) becomes.
+   *
+   * @return array{bundle: string, field: string}
+   */
+  public function media(string $kind): array {
+    $defaults = ['image' => ['bundle' => 'image', 'field' => 'field_media_image']];
+    $media = ($this->data['media'][$kind] ?? []) + ($defaults[$kind] ?? []);
+    if (empty($media['bundle']) || empty($media['field'])) {
+      throw new \RuntimeException("The mapping names no media bundle and field for \"$kind\".");
+    }
+    return $media;
   }
 
   /**

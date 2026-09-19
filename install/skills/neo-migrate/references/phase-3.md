@@ -20,7 +20,7 @@ Then the site-wide rich text and rhythm, which every text-bearing component shar
 1. **Measure.** `cli.mjs probe` on the legacy item at 375, 768 and 1440, plus its `styles.json`. Look for rules keyed to node ids or body classes: they belong in the mapping, not the component.
 2. **Write** the component yml and twig, then create its `neo_component` entity (group `general` for content, `special` + protected for chrome). `drush neo:alchemist:validate front:<name>` must pass.
 3. **Map** the item type in `migration/neo_migrate.yml` (below).
-4. **Convert** the pages that now convert completely: `drush neo-migrate:content --dry-run` lists them; then run it with `--id=`.
+4. **Convert** the pages the component appears on. While the mapping is incomplete, `--skip-unmapped` converts a page without the item types not built yet, for previewing; the full run later replaces those trees.
 5. **Compare** `capture --target=local-neo --only=<those pages>` against a legacy capture of the same pages, with `compare --list`. Iterate until every section passes or its difference is explained.
 6. **Log** metrics for the component; commit on the multidev branch.
 
@@ -49,9 +49,11 @@ paragraphs:
       content: { from: field_text, transform: markup }
 ```
 
-Props take `{from: <field>, transform: markup|string}` or a fixed `{value: …}`. Instances keep the legacy item's UUID (prepended ones get a UUID derived from host and component), so a re-run writes the same tree.
+Props take `{from: <field>, transform: …}` or a fixed `{value: …}`. Transforms: `string`; `markup` (rewritten by the `markup` rules); `flag` (TRUE when the value equals `when`, or is truthy); `image_media` (the file as an image media entity, reusing one that holds the same file with the same alt text; the bundle and source field default to `image` / `field_media_image`, or set `media: {image: {bundle, field}}`). A filled legacy field that no prop takes stops the page, so nothing is dropped silently; list deliberate omissions under the item's `ignore:`. Instances keep the legacy item's UUID (prepended ones get a UUID derived from host and component), so a re-run writes the same tree.
 
-Every written prop is read back through the component before saving, and the host is validated; a value that does not come back as written fails the page. A save is a new revision with a log message, the changed time kept and Pathauto skipped. A re-run reports `unchanged`, and a tree edited since its last conversion is a `conflict` until `--overwrite`.
+`--dry-run` runs everything, including creating media, inside a transaction it rolls back.
+
+Every written prop is read back through the component before saving, and the tree field is validated (only it: a legacy field may already hold something its settings no longer allow); a value that does not come back as written fails the page. A save is a new revision with a log message, the changed time kept and Pathauto skipped. A re-run reports `unchanged`, and a tree edited since its last conversion is a `conflict` until `--overwrite`.
 
 ## Comparing neo sections with legacy ones
 
@@ -61,7 +63,9 @@ Legacy items were spaced by margins; Neo sections by padding. Content sections t
 - { name: content, selector: 'main [data-component-id]:not([data-component-id] [data-component-id])', each: true, fallback: 'main', box: painted }
 ```
 
-A legacy element outside the body that Neo moves into the tree (a page title shown on some pages) joins the legacy selector list, so keys line up.
+A legacy element outside the body that Neo moves into the tree (a page title shown on some pages) joins the legacy selector list. Compare pairs repeated sections by their text, not their position, so a section on one side only (an item type not built yet) leaves the others paired with themselves.
+
+A section that looks identical but warns at 2–4% is usually a photo: neo_image serves AVIF or WebP, whose compression noise differs from the legacy JPEG. Check the diff image before chasing it.
 
 ## Gotchas
 

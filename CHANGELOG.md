@@ -1,5 +1,20 @@
 # Changelog
 
+## Images convert to media, and nothing is dropped silently
+
+**New transforms:** `image_media` turns an image field's file into an image
+media entity, reusing one that already holds the same file with the same alt
+text, and `flag` turns a value into a boolean prop. Media props are written
+with their "use the default" option off, so the converted image is the one
+shown.
+
+**A filled legacy field that no prop takes stops the page**, unless the
+mapping lists it under the item's `ignore:`. **`--skip-unmapped` previews a
+page without the item types not built yet**; the full run replaces the tree.
+**Dry runs roll back** everything they did, media included. The converter now
+validates only the tree field, leaves a tree with nothing in it empty, and
+reads back booleans, numbers and media props by value.
+
 ## Parity pairs repeated sections by what they say
 
 **Compare matches content sections by their text, in order**, instead of by

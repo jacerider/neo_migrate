@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\neo_migrate\Drush\Commands;
 
+use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\neo_migrate\Content\ContentMapping;
 use Drupal\neo_migrate\Content\TreeConverter;
@@ -43,6 +44,8 @@ final class NeoMigrateContentCommands extends DrushCommands {
     private readonly TreeConverter $converter,
     #[Autowire(service: 'neo_migrate.tree_writer')]
     private readonly ComponentTreeWriter $writer,
+    #[Autowire(service: 'database')]
+    private readonly Connection $database,
   ) {
     parent::__construct();
   }
@@ -90,9 +93,10 @@ final class NeoMigrateContentCommands extends DrushCommands {
   #[CLI\Option(name: 'id', description: 'Only these host entity ids, comma-separated.')]
   #[CLI\Option(name: 'mapping', description: 'The mapping file (default: neo_migrate.yml in the migration directory).')]
   #[CLI\Option(name: 'overwrite', description: 'Replace tree fields changed since their last conversion.')]
-  #[CLI\Option(name: 'dry-run', description: 'Convert and check everything, save nothing.')]
+  #[CLI\Option(name: 'dry-run', description: 'Convert and check everything, then roll it all back.')]
+  #[CLI\Option(name: 'skip-unmapped', description: 'Leave out unmapped items instead of stopping the page. For previewing components while the mapping is incomplete; a later full run replaces the tree.')]
   #[CLI\Usage(name: 'drush neo-migrate:content --id=7,25 --dry-run', description: 'Check two pages without saving.')]
-  public function content(array $options = ['id' => NULL, 'mapping' => NULL, 'overwrite' => FALSE, 'dry-run' => FALSE]): int {
+  public function content(array $options = ['id' => NULL, 'mapping' => NULL, 'overwrite' => FALSE, 'dry-run' => FALSE, 'skip-unmapped' => FALSE]): int {
     $mapping = ContentMapping::fromFile($options['mapping'] ?: $this->workspace->path('neo_migrate.yml'));
     if ($mapping->source() !== $this->source->id()) {
       throw new \RuntimeException(sprintf('The mapping reads "%s"; only "%s" is supported.', $mapping->source(), $this->source->id()));
@@ -117,16 +121,27 @@ final class NeoMigrateContentCommands extends DrushCommands {
       }
       foreach ($storage->loadMultiple($query->execute()) as $entity) {
         /** @var \Drupal\Core\Entity\ContentEntityInterface $entity */
-        $tree = $this->source->tree($entity, $host['field']);
-        $converted = $this->converter->convert($tree, $mapping, $entity);
-        $result = $converted['problems']
-          ? ['action' => 'failed', 'problems' => $converted['problems']]
-          : $this->writer->write($entity, $host['target'], $converted['instances'], [
-            'source_hash' => sha1(json_encode($tree)),
-            'mapping_hash' => $mapping->hash(),
-            'dry_run' => (bool) $options['dry-run'],
-            'overwrite' => (bool) $options['overwrite'],
-          ]);
+        // A dry run still creates what the conversion needs (media entities)
+        // so the result can be read back, then rolls it all back.
+        $transaction = $options['dry-run'] ? $this->database->startTransaction() : NULL;
+        try {
+          $tree = $this->source->tree($entity, $host['field']);
+          $converted = $this->converter->convert($tree, $mapping, $entity, (bool) $options['skip-unmapped']);
+          $result = $converted['problems']
+            ? ['action' => 'failed', 'problems' => $converted['problems']]
+            : $this->writer->write($entity, $host['target'], $converted['instances'], [
+              'source_hash' => sha1(json_encode($tree)),
+              'mapping_hash' => $mapping->hash(),
+              'dry_run' => (bool) $options['dry-run'],
+              'overwrite' => (bool) $options['overwrite'],
+            ]);
+        }
+        finally {
+          if ($transaction) {
+            $transaction->rollBack();
+            $this->entityTypeManager->getStorage('media')->resetCache();
+          }
+        }
         if (in_array($result['action'], ['failed', 'conflict'], TRUE)) {
           $failed++;
         }
