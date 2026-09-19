@@ -1,5 +1,12 @@
 # Changelog
 
+## Parity pairs repeated sections by what they say
+
+**Compare matches content sections by their text, in order**, instead of by
+their position: a section present on one side only — an item type not built
+yet, a legacy item left out — is reported as missing and the rest still pair
+with themselves.
+
 ## Content converts into component trees, one item type at a time
 
 **`drush neo-migrate:content` converts each host's legacy tree into its

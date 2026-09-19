@@ -74,13 +74,8 @@ function comparePage(config, { path, width, a, b, reportDir, bases }) {
   page.sizeA = { width: pngA.width, height: pngA.height };
   page.sizeB = { width: pngB.width, height: pngB.height };
 
-  const byKey = (sections) => new Map(sections.map((section) => [section.key, section]));
-  const sectionsA = byKey(metaA.sections);
-  const sectionsB = byKey(metaB.sections);
-  const keys = [...new Set([...sectionsA.keys(), ...sectionsB.keys()])];
-  page.sections = keys.map((key) => {
-    const sa = sectionsA.get(key);
-    const sb = sectionsB.get(key);
+  page.sections = pairSections(metaA.sections, metaB.sections).map(([sa, sb]) => {
+    const key = sa?.key ?? `${sb.key} (only in b)`;
     const entry = { path, width, key, a: sa ? pick(sa) : null, b: sb ? pick(sb) : null };
     if (!sa || !sb) {
       return { ...entry, result: 'missing', percent: null };
@@ -102,6 +97,74 @@ function comparePage(config, { path, width, a, b, reportDir, bases }) {
   page.text = textDiff(metaA.text, metaB.text);
   page.meta = metaDiff(metaA, metaB, bases);
   return page;
+}
+
+/**
+ * Pairs each section of one capture with its counterpart in the other.
+ *
+ * Single sections (header, footer) pair by name. Repeated ones (content-00,
+ * content-01, …) pair by what they say: an in-order alignment that maximises
+ * the word overlap of the pairs, so a section present on one side only — a
+ * component not built yet, a legacy item left out — leaves the rest paired
+ * with themselves instead of shifting every key after it.
+ */
+function pairSections(listA, listB) {
+  const names = [...new Set([...listA, ...listB].map((section) => section.name))];
+  const pairs = [];
+  for (const name of names) {
+    const a = listA.filter((section) => section.name === name);
+    const b = listB.filter((section) => section.name === name);
+    const repeated = [...a, ...b].some((section) => section.key !== section.name);
+    if (!repeated) {
+      pairs.push([a[0] ?? null, b[0] ?? null]);
+      continue;
+    }
+    pairs.push(...align(a, b));
+  }
+  return pairs;
+}
+
+/**
+ * In-order alignment of two section lists by the word overlap of their text.
+ */
+function align(a, b) {
+  const words = (text) => new Set((text ?? '').toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu, ' ').split(/\s+/).filter(Boolean));
+  const wa = a.map((section) => words(section.text));
+  const wb = b.map((section) => words(section.text));
+  const similarity = (i, j) => {
+    const x = wa[i];
+    const y = wb[j];
+    if (!x.size && !y.size) return 1;
+    let shared = 0;
+    for (const word of x) if (y.has(word)) shared++;
+    return shared / (x.size + y.size - shared);
+  };
+  // score[i][j]: the best total for a[i..] and b[j..].
+  const score = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      const s = similarity(i, j);
+      score[i][j] = Math.max(score[i + 1][j], score[i][j + 1], s >= 0.3 ? s + score[i + 1][j + 1] : -1);
+    }
+  }
+  const pairs = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    const s = similarity(i, j);
+    if (s >= 0.3 && score[i][j] === s + score[i + 1][j + 1]) {
+      pairs.push([a[i++], b[j++]]);
+    }
+    else if (score[i][j] === score[i + 1][j]) {
+      pairs.push([a[i++], null]);
+    }
+    else {
+      pairs.push([null, b[j++]]);
+    }
+  }
+  while (i < a.length) pairs.push([a[i++], null]);
+  while (j < b.length) pairs.push([null, b[j++]]);
+  return pairs;
 }
 
 /**
@@ -144,7 +207,7 @@ function metaDiff(a, b, [baseA, baseB]) {
 }
 
 function pick(section) {
-  return { x: section.x, y: section.y, width: section.width, height: section.height, before: section.before, box: section.box, classes: section.classes };
+  return { key: section.key, x: section.x, y: section.y, width: section.width, height: section.height, before: section.before, box: section.box, classes: section.classes };
 }
 
 function readJson(file, fallback) {

@@ -14,7 +14,7 @@ Before each shot the tool blocks tracking scripts, disables animation and smooth
 
 ## Reading a report
 
-- **Sections are the verdict.** Sections are matched by key (`header`, `content-03`, `footer`), each cropped from its own page, so one that moved still compares with itself. The "Full" column is the whole page and moves whenever anything shifts; use it only to notice that something shifted.
+- **Sections are the verdict.** Single sections are matched by name (`header`, `footer`) and repeated ones (`content-03`) by what they say, each cropped from its own page, so one that moved still compares with itself and one present on one side only is reported as missing without shifting the rest. The "Full" column is the whole page and moves whenever anything shifts; use it only to notice that something shifted.
 - **Results**: `pass` at or under `thresholds.pass` percent of differing pixels, `fail` over `thresholds.fail`, `warn` between (a person judges), `missing` when a section exists on one side only.
 - **Missing words** lists words on the first capture absent from the second: lost content. It must be zero.
 - **Head differences** compares title, canonical and every meta tag, with each site's host removed.
