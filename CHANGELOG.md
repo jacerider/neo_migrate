@@ -1,5 +1,14 @@
 # Changelog
 
+## Embedded webforms convert, picked per instance
+
+**A mapping entry can set component filters** (`filters:`, keyed by the
+filter's title), so a component with an editable Webform entity filter feeding
+an Entity slot gets the legacy item's webform: the zero-code path for embedded
+forms. Read-back checks each filter's value. **New transforms:** `target`
+(an entity reference's target id) and `wrap` (a plain value as rich text in
+one tag, for a legacy heading item that becomes rich text).
+
 ## Numbers convert
 
 **The `number` transform** reads a value from any key of the first field item,

@@ -1,7 +1,7 @@
 import { chromium } from 'playwright';
 const [url, sel, width, filter] = process.argv.slice(2);
 const b = await chromium.launch(); const p = await b.newPage({ ignoreHTTPSErrors: true, viewport: { width: Number(width || 1440), height: 900 } });
-await p.goto(url, { waitUntil: 'networkidle' });
+await p.goto(url, { waitUntil: 'load' });
 const out = await p.evaluate(([sel, filter]) => {
   const el = document.querySelector(sel); const res = [];
   for (const sh of document.styleSheets) { let rules; try { rules = sh.cssRules; } catch { continue; }

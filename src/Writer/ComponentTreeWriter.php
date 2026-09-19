@@ -67,10 +67,14 @@ final class ComponentTreeWriter {
       /** @var \Drupal\neo_alchemist\Plugin\Field\FieldType\ComponentTreeItem $item */
       $item = $list->appendItem();
       foreach ($instances as $instance) {
-        $item->addComponent($instance['uuid'], $instance['component'], [
+        $values = [
           'status' => $instance['status'] ? 1 : 0,
           'props' => $instance['props'],
-        ]);
+        ];
+        if (!empty($instance['filters'])) {
+          $values['filters'] = $instance['filters'];
+        }
+        $item->addComponent($instance['uuid'], $instance['component'], $values);
       }
       $problems = $this->readBack($item, $instances);
     }
@@ -135,6 +139,12 @@ final class ComponentTreeWriter {
           continue;
         }
         $values = $component->getPropValues();
+        $filters = $component->getFilters();
+        foreach ($instance['filters'] ?? [] as $uuid => $filter) {
+          if (($filters[$uuid] ?? NULL)?->getValue() !== $filter['value']) {
+            $problems[] = sprintf('%s: filter %s did not read back as %s.', $label, $uuid, $filter['value']);
+          }
+        }
         foreach ($instance['props'] as $name => $prop) {
           $got = $values[$name] ?? NULL;
           $expected = $prop['value'];

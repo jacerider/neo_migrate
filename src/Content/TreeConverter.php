@@ -140,10 +140,20 @@ final class TreeConverter {
       // Any other written value is the value, not a fallback to the default.
       $props[$name]['options'] ??= [$name => ['default' => FALSE]];
     }
+    // Component filters chosen per instance — which webform an embedded form
+    // shows, say — named in the mapping by the filter's title.
+    $filters = [];
+    foreach ($entry['filters'] ?? [] as $title => $spec) {
+      $uuid = $this->filterUuid($component, (string) $title);
+      $value = $this->transformer->transform($spec, $item, $mapping);
+      if ($value !== NULL) {
+        $filters[$uuid] = ['value' => $value];
+      }
+    }
     // Nothing is dropped silently: a field holding a value must feed a prop
-    // or be listed under `ignore`.
+    // or a filter, or be listed under `ignore`.
     $used = $entry['ignore'] ?? [];
-    foreach ($entry['props'] ?? [] as $spec) {
+    foreach (array_merge(array_values($entry['props'] ?? []), array_values($entry['filters'] ?? [])) as $spec) {
       $used = array_merge($used, ValueTransformer::fields($spec));
     }
     foreach ($item['fields'] as $fieldName => $field) {
@@ -157,6 +167,7 @@ final class TreeConverter {
       'component' => $component,
       'status' => (bool) $item['status'],
       'props' => $props,
+      'filters' => $filters,
       'source' => ['bundle' => $item['bundle'], 'id' => $item['id'], 'spec' => $entry],
     ];
   }
@@ -174,6 +185,19 @@ final class TreeConverter {
       substr($hash, 17, 3),
       substr($hash, 20, 12),
     );
+  }
+
+  /**
+   * The uuid of a component's filter, by its title.
+   */
+  private function filterUuid(string $component, string $title): string {
+    $entity = $this->entityTypeManager->getStorage('neo_component')->load($component);
+    foreach ($entity?->get('settings')['filters'] ?? [] as $uuid => $filter) {
+      if (($filter['title'] ?? '') === $title) {
+        return $uuid;
+      }
+    }
+    throw new \RuntimeException("$component has no filter titled \"$title\".");
   }
 
   /**

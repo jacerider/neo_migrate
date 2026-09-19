@@ -24,6 +24,10 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  *   so a file used twice becomes one library item. With `as: <key>`, every
  *   value of the field, as an array prop's entries `{<key>: <media>}`.
  * - `link`: a link field's first value: uri, title and options.
+ * - `wrap`: a plain value as rich text inside one tag: `{transform: wrap,
+ *   from: field_title, tag: h2}` gives `<h2>…</h2>` in the mapping's format.
+ * - `target`: an entity reference's target id, as a component filter value
+ *   (a webform picked per instance, say).
  * - `number`: a number from the first value's `key` (default `value`),
  *   divided by `divide` and rounded: `{transform: number, key: rating,
  *   divide: 20}` turns a 0–100 rating into 0–5 stars.
@@ -80,6 +84,11 @@ final class ValueTransformer {
       'image_media' => isset($spec['as'])
         ? (array_values(array_filter(array_map(fn ($value) => ($media = $this->imageMedia($value, $mapping)) ? [$spec['as'] => $media] : NULL, $field['items'] ?? []))) ?: NULL)
         : $this->imageMedia($first, $mapping),
+      'wrap' => trim((string) ($first['value'] ?? '')) === '' ? NULL : [
+        'value' => sprintf('<%1$s>%2$s</%1$s>', $spec['tag'] ?? 'p', htmlspecialchars(trim((string) $first['value']), ENT_QUOTES)),
+        'format' => $mapping->markup()['format'],
+      ],
+      'target' => empty($first['target_id']) ? NULL : (string) $first['target_id'],
       'number' => !isset($first[$spec['key'] ?? 'value']) || $first[$spec['key'] ?? 'value'] === '' ? NULL : [
         'value' => (int) round((float) $first[$spec['key'] ?? 'value'] / (float) ($spec['divide'] ?? 1)),
       ],
