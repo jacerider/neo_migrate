@@ -1,5 +1,20 @@
 # Changelog
 
+## Legacy form styling stays out of the Neo themes
+
+**The Neo themes' registries are rebuilt without the legacy theme layer.**
+ux_form points core's fieldset template at its own and preprocesses every
+fieldset and container in every theme, not only the legacy one, so while both
+stacks were installed Neo's forms — the Alchemist component editor, webforms on
+the Neo front — rendered ux_form's markup instead of Neo's. For the Neo themes
+named in `neo_migrate.settings`, a template a `theme_layer` module (catalog) moved
+into its own directory goes back where the theme had it, and those modules'
+preprocess functions leave every hook they do not provide themselves. The legacy
+themes keep both. Which theme a registry belongs to is read from its entries
+(the theme paths they were discovered in), not from the active theme: a request
+can build one theme's registry while another is active, and a first version that
+trusted the active theme once stripped the legacy registry.
+
 ## Converted content can be verified
 
 **`drush neo-migrate:verify`** checks every converted host, read-only, and

@@ -119,6 +119,13 @@ keep:
   - xmlsitemap
   - xmlsitemap_engines
 
+# Legacy modules that restyle common theme hooks — fieldset, container,
+# form_element, the header region — in every theme's registry, not only the
+# legacy theme's. While both stacks are installed, their template overrides and
+# preprocess functions are kept out of the Neo themes' registries
+# (CoexistenceHooks), so Neo renders forms and regions as it would alone.
+theme_layer: [ux, ux_aside, ux_dialog, ux_form, ux_header, ux_menu, ux_offcanvas, ux_offcanvas_menu]
+
 # Token name fragments that belong to legacy modules. Metatag defaults (and
 # other config) holding one of these must be rewritten before teardown.
 tokens:
