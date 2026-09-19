@@ -66,6 +66,8 @@ A section that fails in both directions across pages (114px on one, 228px on the
 
 ## Gotchas
 
+- On a fresh environment every image style derivative is generated on its first request, and a request that arrives while another holds the generation lock gets a 503. The capture waits up to 20s for images and re-fetches any that came back broken before swapping them in again; a section that still shows alt text instead of a photo is worth one more capture before it is investigated.
+
 - Judge rendering in Chromium, the browser the tool uses. Firefox showed empty boxes for legacy icon-font glyphs that Chromium and production render correctly.
 - Local DDEV prints PHP deprecations into the message area; `hide: ['[data-drupal-messages]']` keeps them out of the comparison.
 - With DDEV's Mutagen sync, files drush writes inside the container reach the host a moment later.

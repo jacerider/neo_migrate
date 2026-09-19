@@ -1,5 +1,12 @@
 # Changelog
 
+## Captures wait out image derivatives on fresh environments
+
+**Captures wait up to 20s for images, and retry broken ones:** each is
+re-fetched until the derivative is served (a request that meets another's
+generation lock gets a 503), then swapped in again. On a freshly converted
+multidev, large photos otherwise showed as their alt text.
+
 ## Re-runs stay idempotent, and stand-alone items and coordinates convert
 
 **The source fingerprint ignores revision ids.** Saving a host as a new

@@ -177,11 +177,29 @@ async function settle(page) {
     }
     window.scrollTo(0, 0);
     await document.fonts.ready;
-    await Promise.all([...document.images].filter((img) => !img.complete).map((img) => new Promise((resolve) => {
+    const loaded = (timeout) => Promise.all([...document.images].filter((img) => !img.complete).map((img) => new Promise((resolve) => {
       img.addEventListener('load', resolve, { once: true });
       img.addEventListener('error', resolve, { once: true });
-      setTimeout(resolve, 5000);
+      setTimeout(resolve, timeout);
     })));
+    await loaded(20000);
+    // An image style derivative is generated on its first request, which on a
+    // fresh environment can outlast the wait, and a request that arrives while
+    // another holds the generation lock gets a 503. Fetch each broken one until
+    // it is served (up to 30s), then swap in a fresh copy of it to load again.
+    const broken = [...document.images].filter((img) => img.complete && img.naturalWidth === 0 && img.currentSrc);
+    for (const img of broken) {
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const response = await fetch(img.currentSrc).catch(() => null);
+        if (response?.ok) break;
+        await pause(3000);
+      }
+      const node = img.closest('picture') ?? img;
+      node.replaceWith(node.cloneNode(true));
+    }
+    if (broken.length) {
+      await loaded(20000);
+    }
     await pause(300);
   });
 }
