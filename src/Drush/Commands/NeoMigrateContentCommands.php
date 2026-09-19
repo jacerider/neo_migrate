@@ -130,7 +130,7 @@ final class NeoMigrateContentCommands extends DrushCommands {
           $result = $converted['problems']
             ? ['action' => 'failed', 'problems' => $converted['problems']]
             : $this->writer->write($entity, $host['target'], $converted['instances'], [
-              'source_hash' => sha1(json_encode($tree)),
+              'source_hash' => $this->sourceFingerprint($tree),
               'mapping_hash' => $mapping->hash(),
               'dry_run' => (bool) $options['dry-run'],
               'overwrite' => (bool) $options['overwrite'],
@@ -162,6 +162,27 @@ final class NeoMigrateContentCommands extends DrushCommands {
     }
     $this->io()->success(sprintf('%d converted%s.', count($rows), $options['dry-run'] ? ' (dry run: nothing saved)' : ''));
     return self::EXIT_SUCCESS;
+  }
+
+
+  /**
+   * A fingerprint of a legacy tree that ignores revision ids.
+   *
+   * Saving a host as a new revision can save new revisions of the items it
+   * holds (entity_reference_revisions does), so revision ids change without
+   * any content changing and would make every re-run a rewrite.
+   */
+  private function sourceFingerprint(array $tree): string {
+    $strip = static function (array $value) use (&$strip): array {
+      unset($value['revision'], $value['target_revision_id']);
+      foreach ($value as $key => $child) {
+        if (is_array($child)) {
+          $value[$key] = $strip($child);
+        }
+      }
+      return $value;
+    };
+    return sha1(json_encode($strip($tree)));
   }
 
 }

@@ -1,5 +1,14 @@
 # Changelog
 
+## Re-runs stay idempotent, and stand-alone items and coordinates convert
+
+**The source fingerprint ignores revision ids.** Saving a host as a new
+revision makes entity_reference_revisions save new revisions of its items, so
+revision ids changed without any content changing and a page could be
+rewritten on every run. **`each` takes `from: '@self'`** for a legacy item
+that stood alone where the component expects a list, and **`number` takes a
+`precision`** to keep decimals (coordinates).
+
 ## Embedded webforms convert, picked per instance
 
 **A mapping entry can set component filters** (`filters:`, keyed by the

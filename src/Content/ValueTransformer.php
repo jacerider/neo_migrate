@@ -29,13 +29,17 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  * - `target`: an entity reference's target id, as a component filter value
  *   (a webform picked per instance, say).
  * - `number`: a number from the first value's `key` (default `value`),
- *   divided by `divide` and rounded: `{transform: number, key: rating,
- *   divide: 20}` turns a 0–100 rating into 0–5 stars.
+ *   divided by `divide` and rounded to `precision` decimals (default 0, a
+ *   whole number): `{transform: number, key: rating, divide: 20}` turns a
+ *   0–100 rating into 0–5 stars; `{key: lat, precision: 6}` keeps a
+ *   coordinate.
  * - `heading`: a heading built from several fields, named per part:
  *   `{transform: heading, supertitle: field_a, title: field_b}`.
  * - `each`: nested items (a paragraphs field) as an array prop, one entry
  *   per published item, each built from its own `props:` mapping:
  *   `{from: field_items, transform: each, bundle: item, props: {…}}`.
+ *   `from: '@self'` makes the item itself the one entry, for a legacy item
+ *   that stood alone where the component expects a list.
  *   The nested items obey the same rule as their parent: a filled field no
  *   prop takes is an error unless listed under `ignore:`.
  */
@@ -69,6 +73,9 @@ final class ValueTransformer {
     if (($spec['transform'] ?? NULL) === 'heading') {
       return $this->heading($spec, $item);
     }
+    if (($spec['transform'] ?? NULL) === 'each' && ($spec['from'] ?? NULL) === '@self') {
+      return $this->each(['bundle' => $item['bundle']] + $spec, [$item], $mapping);
+    }
     $field = $item['fields'][$spec['from'] ?? ''] ?? NULL;
     if ($field === NULL) {
       throw new \RuntimeException(sprintf('%s has no field "%s".', $item['bundle'], $spec['from'] ?? ''));
@@ -90,7 +97,9 @@ final class ValueTransformer {
       ],
       'target' => empty($first['target_id']) ? NULL : (string) $first['target_id'],
       'number' => !isset($first[$spec['key'] ?? 'value']) || $first[$spec['key'] ?? 'value'] === '' ? NULL : [
-        'value' => (int) round((float) $first[$spec['key'] ?? 'value'] / (float) ($spec['divide'] ?? 1)),
+        'value' => empty($spec['precision'])
+          ? (int) round((float) $first[$spec['key'] ?? 'value'] / (float) ($spec['divide'] ?? 1))
+          : round((float) $first[$spec['key'] ?? 'value'] / (float) ($spec['divide'] ?? 1), (int) $spec['precision']),
       ],
       'link' => empty($first['uri']) ? NULL : [
         'uri' => $first['uri'],
@@ -147,6 +156,13 @@ final class ValueTransformer {
    * @return list<string>
    */
   public static function fields(array $spec): array {
+    if (($spec['from'] ?? NULL) === '@self') {
+      $fields = [];
+      foreach ($spec['props'] ?? [] as $sub) {
+        $fields = array_merge($fields, self::fields($sub));
+      }
+      return array_merge($fields, $spec['ignore'] ?? []);
+    }
     if (($spec['transform'] ?? NULL) === 'heading') {
       return array_values(array_filter(array_intersect_key($spec, array_flip(self::HEADING_PARTS))));
     }
