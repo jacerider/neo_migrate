@@ -190,7 +190,7 @@ final class TreeConverter {
   /**
    * The uuid of a component's filter, by its title.
    */
-  private function filterUuid(string $component, string $title): string {
+  public function filterUuid(string $component, string $title): string {
     $entity = $this->entityTypeManager->getStorage('neo_component')->load($component);
     foreach ($entity?->get('settings')['filters'] ?? [] as $uuid => $filter) {
       if (($filter['title'] ?? '') === $title) {

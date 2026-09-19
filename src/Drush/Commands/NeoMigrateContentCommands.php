@@ -11,6 +11,7 @@ use Drupal\neo_migrate\Content\TreeConverter;
 use Drupal\neo_migrate\Importer\IconFieldImporter;
 use Drupal\neo_migrate\Importer\SiteSettingsImporter;
 use Drupal\neo_migrate\Source\ParagraphsSource;
+use Drupal\neo_migrate\Verify\ContentVerifier;
 use Drupal\neo_migrate\Workspace;
 use Drupal\neo_migrate\Writer\ComponentTreeWriter;
 use Drush\Attributes as CLI;
@@ -46,6 +47,8 @@ final class NeoMigrateContentCommands extends DrushCommands {
     private readonly ComponentTreeWriter $writer,
     #[Autowire(service: 'database')]
     private readonly Connection $database,
+    #[Autowire(service: 'neo_migrate.content_verifier')]
+    private readonly ContentVerifier $verifier,
   ) {
     parent::__construct();
   }
@@ -130,7 +133,7 @@ final class NeoMigrateContentCommands extends DrushCommands {
           $result = $converted['problems']
             ? ['action' => 'failed', 'problems' => $converted['problems']]
             : $this->writer->write($entity, $host['target'], $converted['instances'], [
-              'source_hash' => $this->sourceFingerprint($tree),
+              'source_hash' => $this->source->fingerprint($tree),
               'mapping_hash' => $mapping->hash(),
               'dry_run' => (bool) $options['dry-run'],
               'overwrite' => (bool) $options['overwrite'],
@@ -164,25 +167,53 @@ final class NeoMigrateContentCommands extends DrushCommands {
     return self::EXIT_SUCCESS;
   }
 
-
   /**
-   * A fingerprint of a legacy tree that ignores revision ids.
+   * Checks every converted host against its legacy tree and the inventory.
    *
-   * Saving a host as a new revision can save new revisions of the items it
-   * holds (entity_reference_revisions does), so revision ids change without
-   * any content changing and would make every re-run a rewrite.
+   * Read-only. Errors mean a host does not hold what its legacy tree did (or
+   * the conversion changed something it must not have); warnings are for a
+   * person to judge — a host edited since the inventory was taken, say.
    */
-  private function sourceFingerprint(array $tree): string {
-    $strip = static function (array $value) use (&$strip): array {
-      unset($value['revision'], $value['target_revision_id']);
-      foreach ($value as $key => $child) {
-        if (is_array($child)) {
-          $value[$key] = $strip($child);
-        }
+  #[CLI\Command(name: 'neo-migrate:verify', aliases: ['nmv'])]
+  #[CLI\Option(name: 'id', description: 'Only these host entity ids, comma-separated.')]
+  #[CLI\Option(name: 'mapping', description: 'The mapping file (default: neo_migrate.yml in the migration directory).')]
+  #[CLI\Option(name: 'inventory', description: 'The inventory to compare against (default: inventory.before.json in the migration directory).')]
+  #[CLI\Usage(name: 'drush neo-migrate:verify', description: 'Check every host after neo-migrate:content.')]
+  public function verify(array $options = ['id' => NULL, 'mapping' => NULL, 'inventory' => NULL]): int {
+    $mapping = ContentMapping::fromFile($options['mapping'] ?: $this->workspace->path('neo_migrate.yml'));
+    $path = $options['inventory'] ?: $this->workspace->path('inventory.before.json');
+    if (!is_file($path)) {
+      throw new \RuntimeException("No inventory at $path: take one with neo-migrate:inventory before converting.");
+    }
+    $inventory = json_decode((string) file_get_contents($path), TRUE, 512, JSON_THROW_ON_ERROR);
+    $ids = $options['id'] ? array_map('trim', explode(',', (string) $options['id'])) : NULL;
+    $results = $this->verifier->verify($mapping, $inventory, $ids);
+
+    $rows = [];
+    $errors = $warnings = 0;
+    foreach ($results as $result) {
+      $levels = array_count_values(array_column($result['findings'], 'level')) + ['error' => 0, 'warning' => 0];
+      $errors += $levels['error'];
+      $warnings += $levels['warning'];
+      $rows[] = [
+        $result['id'],
+        $result['label'],
+        sprintf('%d / %d', $result['found'], $result['expected']),
+        $result['findings'] ? sprintf('%d errors, %d warnings', $levels['error'], $levels['warning']) : 'ok',
+      ];
+    }
+    $this->io()->table(['ID', 'Label', 'Components (found / expected)', 'Result'], $rows);
+    foreach ($results as $result) {
+      foreach ($result['findings'] as $finding) {
+        $this->io()->writeln(sprintf('%s %s %s: <%s>%s</>: %s', $result['entity_type'], $result['id'], $result['label'], $finding['level'] === 'error' ? 'error' : 'comment', $finding['level'], $finding['message']));
       }
-      return $value;
-    };
-    return sha1(json_encode($strip($tree)));
+    }
+    if ($errors) {
+      $this->io()->error(sprintf('%d errors and %d warnings across %d hosts.', $errors, $warnings, count($results)));
+      return self::EXIT_FAILURE;
+    }
+    $this->io()->success(sprintf('%d hosts verified%s.', count($results), $warnings ? ", with $warnings warnings to review" : ''));
+    return self::EXIT_SUCCESS;
   }
 
 }

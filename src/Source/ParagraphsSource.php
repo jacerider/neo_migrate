@@ -96,6 +96,27 @@ final class ParagraphsSource implements SourceAdapterInterface {
   }
 
   /**
+   * {@inheritdoc}
+   *
+   * Revision ids are left out: saving a host as a new revision saves new
+   * revisions of the paragraphs it holds (entity_reference_revisions does),
+   * so they change without any content changing and would make every re-run
+   * a rewrite.
+   */
+  public function fingerprint(array $tree): string {
+    $strip = static function (array $value) use (&$strip): array {
+      unset($value['revision'], $value['target_revision_id']);
+      foreach ($value as $key => $child) {
+        if (is_array($child)) {
+          $value[$key] = $strip($child);
+        }
+      }
+      return $value;
+    };
+    return sha1(json_encode($strip($tree)));
+  }
+
+  /**
    * One paragraph and everything nested beneath it.
    */
   private function item(ContentEntityInterface $paragraph): array {

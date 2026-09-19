@@ -1,5 +1,21 @@
 # Changelog
 
+## Converted content can be verified
+
+**`drush neo-migrate:verify`** checks every converted host, read-only, and
+exits non-zero on any error. Against the inventory: the host still exists with
+the same label, status, URL and other field values (a host edited since the
+inventory reports these as warnings). Against its legacy tree: one component
+per item, in order and with the same status, and each prop the mapping fills
+reads back as the legacy field held it — text by its visible words, images by
+file and alt text, links by text and address, webforms by id (which must
+exist). Against the component: a content prop nothing fills, which would show
+the component's example, is an error unless a value provider fills it. The
+checks are written from the mapping, not with the converter, so a converter
+bug surfaces instead of repeating. **Source adapters provide the tree
+fingerprint** (`fingerprint()`) that conversion records and verification
+compares.
+
 ## Captures wait out image derivatives on fresh environments
 
 **Captures wait up to 20s for images, and retry broken ones:** each is

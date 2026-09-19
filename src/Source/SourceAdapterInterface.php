@@ -42,4 +42,12 @@ interface SourceAdapterInterface {
    */
   public function tree(ContentEntityInterface $host, string $field): array;
 
+  /**
+   * A fingerprint of a tree that changes only when its content does.
+   *
+   * Stored with each conversion so a later run, and verification, can tell
+   * whether the legacy tree was edited since.
+   */
+  public function fingerprint(array $tree): string;
+
 }

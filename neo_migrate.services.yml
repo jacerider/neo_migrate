@@ -93,6 +93,20 @@ services:
     class: Drupal\neo_migrate\Writer\ComponentTreeWriter
     arguments: ['@keyvalue', '@renderer']
 
+  # neo_alchemist's value plugin manager tells a provider-filled prop from an
+  # unset one; optional like neo_icon above.
+  neo_migrate.content_verifier:
+    class: Drupal\neo_migrate\Verify\ContentVerifier
+    arguments:
+      - '@entity_type.manager'
+      - '@neo_migrate.source.paragraphs'
+      - '@neo_migrate.tree_converter'
+      - '@neo_migrate.field_normalizer'
+      - '@path_alias.manager'
+      - '@keyvalue'
+      - '@renderer'
+      - '@?plugin.manager.neo_component_value'
+
   # Above the admin and default negotiators, below the AJAX base page one, so
   # an AJAX request keeps the theme of the page that made it.
   neo_migrate.preview_negotiator:
