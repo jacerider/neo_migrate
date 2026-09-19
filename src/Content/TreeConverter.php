@@ -54,7 +54,7 @@ final class TreeConverter {
         'fields' => [],
       ];
       try {
-        $result['instances'][] = $this->instance($item, $entry, $mapping);
+        $result['instances'][] = $this->instance($item, $entry, $mapping, $host->bundle());
       }
       catch (\RuntimeException $e) {
         $result['problems'][] = "prepend {$entry['component']}: {$e->getMessage()}";
@@ -81,7 +81,7 @@ final class TreeConverter {
         continue;
       }
       try {
-        $result['instances'][] = $this->instance($item, $entry, $mapping);
+        $result['instances'][] = $this->instance($item, $entry, $mapping, $host->bundle());
       }
       catch (\RuntimeException $e) {
         $result['problems'][] = "$label: {$e->getMessage()}";
@@ -93,11 +93,17 @@ final class TreeConverter {
   /**
    * One component instance from one legacy item.
    */
-  private function instance(array $item, array $entry, ContentMapping $mapping): array {
+  private function instance(array $item, array $entry, ContentMapping $mapping, string $hostBundle = ''): array {
     $component = $entry['component'];
     $refs = $this->refs($component);
     $props = [];
-    foreach ($entry['props'] ?? [] as $name => $spec) {
+    $specs = $entry['props'] ?? [];
+    foreach ($mapping->bundleProps($hostBundle) as $name => $spec) {
+      if (isset($refs[$name]) && !isset($specs[$name])) {
+        $specs[$name] = $spec;
+      }
+    }
+    foreach ($specs as $name => $spec) {
       if (!isset($refs[$name])) {
         throw new \RuntimeException("$component has no prop \"$name\".");
       }
@@ -115,12 +121,24 @@ final class TreeConverter {
       if (in_array($refs[$name], self::MEDIA_REFS, TRUE)) {
         $props[$name]['options'] = [$name => ['empty' => FALSE, 'default' => FALSE]];
       }
+      // The same inside an array, where each entry's props are keyed
+      // `<array>~<prop>~<delta>`: nested media otherwise show their default.
+      if ($refs[$name] === 'array' && is_array($value)) {
+        $props[$name]['options'] = [$name => ['default' => FALSE]];
+        foreach (array_values($value) as $delta => $row) {
+          foreach (array_keys((array) $row) as $key) {
+            $props[$name]['options']["$name~$key~$delta"] = ['default' => FALSE, 'empty' => FALSE];
+          }
+        }
+      }
       if ($refs[$name] === 'heading') {
         $props[$name]['options'] = [$name => ['default' => FALSE, 'empty' => FALSE]];
         foreach (ValueTransformer::HEADING_PARTS as $part) {
           $props[$name]['options']["$name~$part"] = ['default' => FALSE, 'empty' => ($value[$part]['value'] ?? '') === ''];
         }
       }
+      // Any other written value is the value, not a fallback to the default.
+      $props[$name]['options'] ??= [$name => ['default' => FALSE]];
     }
     // Nothing is dropped silently: a field holding a value must feed a prop
     // or be listed under `ignore`.

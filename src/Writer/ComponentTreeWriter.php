@@ -162,12 +162,19 @@ final class ComponentTreeWriter {
   /**
    * Whether each array entry reads back with the text it was written with.
    *
-   * Compares the text values of each entry (`{value: …}` parts); nested media
-   * and links are left to the component's own rendering.
+   * Compares the text values (`{value: …}` parts) and media references of
+   * each entry; links and rich text are left to the component's rendering.
    */
   private function sameEntries(array $got, array $expected): bool {
     foreach ($expected as $i => $entry) {
       foreach ($entry as $key => $value) {
+        if (is_array($value) && isset($value['target_id'])) {
+          $read = $got[$i][$key] ?? NULL;
+          if (!is_array($read) || (string) ($read['target_id'] ?? '') !== (string) $value['target_id']) {
+            return FALSE;
+          }
+          continue;
+        }
         if (!is_array($value) || !array_key_exists('value', $value) || isset($value['format'])) {
           continue;
         }

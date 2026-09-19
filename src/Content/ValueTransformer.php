@@ -21,7 +21,8 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  *   truthy).
  * - `image_media`: an image field's file, as an image media entity. A media
  *   entity already holding the same file with the same alt text is reused,
- *   so a file used twice becomes one library item.
+ *   so a file used twice becomes one library item. With `as: <key>`, every
+ *   value of the field, as an array prop's entries `{<key>: <media>}`.
  * - `link`: a link field's first value: uri, title and options.
  * - `heading`: a heading built from several fields, named per part:
  *   `{transform: heading, supertitle: field_a, title: field_b}`.
@@ -55,7 +56,8 @@ final class ValueTransformer {
    */
   public function transform(array $spec, array $item, ContentMapping $mapping): mixed {
     if (array_key_exists('value', $spec)) {
-      return $spec['value'];
+      // A fixed value; a scalar is a single-value field item.
+      return is_array($spec['value']) ? $spec['value'] : ['value' => $spec['value']];
     }
     if (($spec['transform'] ?? NULL) === 'heading') {
       return $this->heading($spec, $item);
@@ -72,7 +74,9 @@ final class ValueTransformer {
       'markup' => $this->markup($first, $mapping),
       'string' => $first === NULL || trim((string) ($first['value'] ?? '')) === '' ? NULL : ['value' => trim((string) $first['value'])],
       'flag' => ['value' => isset($spec['when']) ? (string) ($first['value'] ?? '') === (string) $spec['when'] : !empty($first['value'])],
-      'image_media' => $this->imageMedia($first, $mapping),
+      'image_media' => isset($spec['as'])
+        ? (array_values(array_filter(array_map(fn ($value) => ($media = $this->imageMedia($value, $mapping)) ? [$spec['as'] => $media] : NULL, $field['items'] ?? []))) ?: NULL)
+        : $this->imageMedia($first, $mapping),
       'link' => empty($first['uri']) ? NULL : [
         'uri' => $first['uri'],
         'title' => (string) ($first['title'] ?? ''),

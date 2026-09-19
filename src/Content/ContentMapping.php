@@ -18,6 +18,8 @@ use Drupal\Component\Serialization\Yaml;
  * unmapped: fail
  * prepend:
  *   - { component: title_s1, ids: [7, 8] }
+ * bundle_props:                  # fixed props for every component on a bundle
+ *   service: { spacing: { value: lg } }
  * markup:
  *   format: neo
  *   classes: { 'button outline': 'btn btn-outline-primary' }
@@ -111,6 +113,20 @@ final class ContentMapping {
       }
     }
     return $entries;
+  }
+
+  /**
+   * Fixed prop values for every component converted on hosts of a bundle.
+   *
+   * For how a legacy theme styled one content type differently — wider
+   * spacing on service pages, say — which in neo is a prop each component
+   * carries. Applied only where the component has the prop and its own
+   * mapping does not set it.
+   *
+   * @return array<string, array>
+   */
+  public function bundleProps(string $bundle): array {
+    return $this->data['bundle_props'][$bundle] ?? [];
   }
 
   /**

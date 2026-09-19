@@ -1,5 +1,15 @@
 # Changelog
 
+## Array entries keep their images, and bundles can carry fixed props
+
+**Array props are written with each entry's "use the default" option off**
+(`<array>~<prop>~<delta>`), and every other prop with its own: nested images
+showed the component's placeholder otherwise. Read-back now compares nested
+media references too, which is how this surfaced. **`image_media` with
+`as: <key>`** turns a multi-value image field into array entries.
+**`bundle_props:`** sets fixed props on every component converted on hosts of
+a bundle, and a scalar fixed `value:` is wrapped as a field item.
+
 ## Nested items convert into array props
 
 **The `each` transform turns nested items** — a paragraphs field inside a
