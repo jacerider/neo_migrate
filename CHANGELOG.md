@@ -1,5 +1,13 @@
 # Changelog
 
+## Hidden toolbars stop displacing captures
+
+**A capture re-measures Drupal's displacement after hiding.** neo_toolbar marks
+itself with `data-offset-*`, and Drupal turns that into
+`--drupal-displace-offset-*`, which Neo themes apply as margins. The hide rules
+arrive after the page loads, so a hidden toolbar still pushed the page down and
+right; `Drupal.displace()` now runs again once they are in place.
+
 ## Legacy form styling stays out of the Neo themes
 
 **The Neo themes' registries are rebuilt without the legacy theme layer.**

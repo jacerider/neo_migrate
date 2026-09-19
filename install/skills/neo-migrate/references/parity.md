@@ -55,7 +55,7 @@ targets:
     url: https://example.ddev.site
     login: ddev drush uli --no-browser   # any command printing a one-time login link
     preview: neo                         # neo_migrate's theme preview mode
-    hide: ['#block-local-tasks']         # admin-only chrome on this target
+    hide: ['#block-local-tasks', '.neo-toolbar']  # admin-only chrome on this target
 ```
 
 The tool logs in once, visits `/neo-migrate/preview/<mode>`, checks the preview cookie took, and reuses that session for every page; the preview banner is hidden. Status codes are still checked anonymously. On a multidev the login is `terminus drush <site>.<env> -- uli --no-browser`.
@@ -70,4 +70,5 @@ A section that fails in both directions across pages (114px on one, 228px on the
 
 - Judge rendering in Chromium, the browser the tool uses. Firefox showed empty boxes for legacy icon-font glyphs that Chromium and production render correctly.
 - Local DDEV prints PHP deprecations into the message area; `hide: ['[data-drupal-messages]']` keeps them out of the comparison.
+- A logged-in target on a Neo theme shows neo_toolbar, which displaces the page through Drupal's `--drupal-displace-offset-*` variables. Hide `.neo-toolbar`; the tool re-runs `Drupal.displace()` after hiding, so the page takes back the room.
 - With DDEV's Mutagen sync, files drush writes inside the container reach the host a moment later.

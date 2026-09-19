@@ -98,6 +98,10 @@ async function capturePage(browser, config, { base, session, hide }, dir, { url,
         ...hide.map((selector) => `${selector} { display: none !important; }`),
       ].join('\n'),
     });
+    // A hidden toolbar still displaces the page: Drupal measured its offsets
+    // (--drupal-displace-offset-*) before the rules above existed. Measure
+    // again, now that it takes no room.
+    await page.evaluate(() => window.Drupal?.displace?.(true));
     await settle(page);
 
     const out = join(dir, slug(url.path), String(width));
