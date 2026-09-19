@@ -58,7 +58,7 @@ export async function compare(config, labelA, labelB) {
   const summary = { a: { label: labelA, base: manifestA.base }, b: { label: labelB, base: manifestB.base }, thresholds: config.thresholds, totals, pages, status, compared: new Date().toISOString() };
   writeFileSync(join(reportDir, 'summary.json'), JSON.stringify(summary, null, 2));
   writeFileSync(join(reportDir, 'index.html'), renderReport(summary, (file) => relative(reportDir, file)));
-  return { reportDir, totals };
+  return { reportDir, totals, pages };
 }
 
 function comparePage(config, { path, width, a, b, reportDir, bases }) {
@@ -88,6 +88,9 @@ function comparePage(config, { path, width, a, b, reportDir, bases }) {
     const result = diff(crop(pngA, sa.x, sa.y, sa.width, sa.height), crop(pngB, sb.x, sb.y, sb.width, sb.height));
     entry.percent = result.percent;
     entry.heightDelta = sb.height - sa.height;
+    if (sa.before !== undefined && sb.before !== undefined) {
+      entry.beforeDelta = sb.before - sa.before;
+    }
     entry.result = result.percent <= config.thresholds.pass ? 'pass' : result.percent <= config.thresholds.fail ? 'warn' : 'fail';
     if (entry.result !== 'pass') {
       entry.diff = join(reportDir, 'diff', `${slug(path)}-${width}-${key}.png`);
@@ -141,7 +144,7 @@ function metaDiff(a, b, [baseA, baseB]) {
 }
 
 function pick(section) {
-  return { x: section.x, y: section.y, width: section.width, height: section.height, classes: section.classes };
+  return { x: section.x, y: section.y, width: section.width, height: section.height, before: section.before, box: section.box, classes: section.classes };
 }
 
 function readJson(file, fallback) {

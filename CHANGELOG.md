@@ -1,5 +1,16 @@
 # Changelog
 
+## Parity compares margin-spaced legacy items with padding-spaced Neo sections
+
+**`box: painted` measures what a section paints** instead of its layout box —
+its own background or border, else the text, images and painted boxes inside
+it — so legacy paragraphs spaced by margins compare with Neo sections spaced
+by padding. The change in space above each section is reported on its own,
+and `compare --list` prints every section's result. Captures also disable
+smooth scrolling, number sections by what is shown, and leave content parked
+off-screen, visually hidden content and empty clearfix pseudo-elements out of
+the boxes.
+
 ## The theme preview works on Pantheon
 
 **The preview cookie is now `STYXKEY_neo_migrate_preview`.** Pantheon's CDN

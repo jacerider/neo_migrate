@@ -92,6 +92,9 @@ async function capturePage(browser, config, { base, session, hide }, dir, { url,
     await page.addStyleTag({
       content: [
         '*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }',
+        // Smooth scrolling would turn settle()'s jumps into animations still
+        // running when the shot is taken.
+        'html, body { scroll-behavior: auto !important; }',
         ...hide.map((selector) => `${selector} { display: none !important; }`),
       ].join('\n'),
     });
@@ -189,9 +192,59 @@ async function settle(page) {
  */
 function collect({ themes, styleProps, samples }) {
   const visibleText = (el) => (el?.innerText ?? '').replace(/\s+/g, ' ').trim();
-  const box = (el) => {
-    const rect = el.getBoundingClientRect();
-    return { x: Math.round(rect.left + window.scrollX), y: Math.round(rect.top + window.scrollY), width: Math.round(rect.width), height: Math.round(rect.height) };
+  const toBox = (rect) => ({ x: Math.round(rect.left + window.scrollX), y: Math.round(rect.top + window.scrollY), width: Math.round(rect.width), height: Math.round(rect.height) });
+  const box = (el) => toBox(el.getBoundingClientRect());
+
+  // The painted box: the smallest rectangle holding everything the element
+  // shows — its own background or border if it has one, otherwise the text,
+  // images and painted boxes inside it, clipped where an ancestor clips. Space
+  // a section only reserves (padding, empty wrappers) is left out, so a
+  // section spaced with margins compares equal to one spaced with padding.
+  const REPLACED = new Set(['IMG', 'SVG', 'VIDEO', 'IFRAME', 'CANVAS', 'INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'OBJECT', 'EMBED', 'HR']);
+  const clear = (color) => color === 'transparent' || /rgba\(.*,\s*0\)$/.test(color);
+  const paints = (cs) => !clear(cs.backgroundColor) || cs.backgroundImage !== 'none' || cs.boxShadow !== 'none'
+    || ['Top', 'Right', 'Bottom', 'Left'].some((side) => parseFloat(cs[`border${side}Width`]) > 0 && cs[`border${side}Style`] !== 'none' && !clear(cs[`border${side}Color`]));
+  // A pseudo-element paints when it shows text (an icon glyph, a dash) or
+  // draws a box; a clearfix's `content: " "` does neither.
+  const pseudo = (el) => ['::before', '::after'].some((which) => {
+    const cs = getComputedStyle(el, which);
+    if (!cs.content || cs.content === 'none' || cs.content === 'normal' || cs.display === 'none') return false;
+    return cs.content.replace(/^["']|["']$/g, '').trim() !== '' || paints(cs);
+  });
+  const intersect = (a, b) => (!a ? b : !b ? a : { left: Math.max(a.left, b.left), top: Math.max(a.top, b.top), right: Math.min(a.right, b.right), bottom: Math.min(a.bottom, b.bottom) });
+  const paintedBox = (root) => {
+    let ink = null;
+    const add = (rect, clip) => {
+      const r = intersect(clip, { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom });
+      if (r.right - r.left <= 1 || r.bottom - r.top <= 1) return;
+      ink = ink ? { left: Math.min(ink.left, r.left), top: Math.min(ink.top, r.top), right: Math.max(ink.right, r.right), bottom: Math.max(ink.bottom, r.bottom) } : r;
+    };
+    const walk = (el, clip) => {
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return;
+      // Visually hidden (sr-only) content paints nothing.
+      if (cs.clip === 'rect(0px, 0px, 0px, 0px)' || cs.clipPath === 'inset(50%)') return;
+      const rect = el.getBoundingClientRect();
+      if (paints(cs) || REPLACED.has(el.tagName.toUpperCase()) || pseudo(el)) {
+        add(rect, clip);
+      }
+      const inner = cs.overflowX !== 'visible' || cs.overflowY !== 'visible' ? intersect(clip, rect) : clip;
+      for (const node of el.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          for (const r of range.getClientRects()) add(r, inner);
+        }
+        else if (node.nodeType === Node.ELEMENT_NODE) {
+          walk(node, inner);
+        }
+      }
+    };
+    // Clipped to the page, so content parked off-screen (a honeypot field)
+    // does not stretch the box.
+    const page = { left: -window.scrollX, top: -window.scrollY, right: document.documentElement.scrollWidth - window.scrollX, bottom: document.documentElement.scrollHeight - window.scrollY };
+    walk(root, page);
+    return ink ? toBox({ left: ink.left, top: ink.top, width: ink.right - ink.left, height: ink.bottom - ink.top }) : null;
   };
   const style = (el) => {
     const computed = getComputedStyle(el);
@@ -211,13 +264,17 @@ function collect({ themes, styleProps, samples }) {
     if (!section.each) {
       elements = elements.slice(0, 1);
     }
-    elements.forEach((el, index) => {
-      const key = section.each ? `${section.name}-${String(index).padStart(2, '0')}` : section.name;
-      const rect = box(el);
-      if (!rect.width || !rect.height) {
+    // Numbered by what is shown, so a hidden match leaves no gap in the keys.
+    let index = 0;
+    elements.forEach((el) => {
+      const border = box(el);
+      const rect = section.box === 'painted' ? paintedBox(el) : border;
+      if (!rect?.width || !rect?.height) {
         return;
       }
-      sections.push({ key, name: section.name, index, ...rect, classes: el.className?.toString().slice(0, 160) ?? '', text: visibleText(el).slice(0, 4000) });
+      const key = section.each ? `${section.name}-${String(index).padStart(2, '0')}` : section.name;
+      index++;
+      sections.push({ key, name: section.name, index: index - 1, ...rect, box: section.box ?? 'border', border, classes: el.className?.toString().slice(0, 160) ?? '', text: visibleText(el).slice(0, 4000) });
       styles[key] = {
         root: style(el),
         samples: samples.flatMap((selector) => [...el.querySelectorAll(selector)].slice(0, 3).map((child) => ({
@@ -231,6 +288,12 @@ function collect({ themes, styleProps, samples }) {
       };
     });
   }
+  // The space above each section, down from the one before it, so spacing
+  // stays comparable when painted boxes leave it out of the sections.
+  sections.forEach((section, i) => {
+    const previous = sections[i - 1];
+    section.before = previous ? section.y - (previous.y + previous.height) : section.y;
+  });
 
   const tags = {};
   for (const el of document.querySelectorAll('meta[name], meta[property]')) {

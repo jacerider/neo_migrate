@@ -12,6 +12,7 @@
  *   --config=<file>     parity config (default migration/parity.yml)
  *   --only=/a,/b        capture only these paths
  *   --widths=375,1440   override the configured widths
+ *   --list              compare: print every section's result, not just totals
  *   --path, --width, --depth   probe: the page, the width (default 1440) and
  *                       how many levels of descendants to print (default 3)
  */
@@ -32,13 +33,14 @@ const { values, positionals } = parseArgs({
     path: { type: 'string', default: '/' },
     width: { type: 'string', default: '1440' },
     depth: { type: 'string', default: '3' },
+    list: { type: 'boolean' },
     help: { type: 'boolean', short: 'h' },
   },
 });
 
 const [command, ...args] = positionals;
 const usage = () => {
-  console.log('Usage:\n  cli.mjs capture --target=<name> --label=<label> [--only=/a,/b] [--widths=375,1440]\n  cli.mjs compare <labelA> <labelB>\n  cli.mjs probe --target=<name> [--path=/] [--width=1440] [--depth=3] <selector>');
+  console.log('Usage:\n  cli.mjs capture --target=<name> --label=<label> [--only=/a,/b] [--widths=375,1440]\n  cli.mjs compare <labelA> <labelB> [--list]\n  cli.mjs probe --target=<name> [--path=/] [--width=1440] [--depth=3] <selector>');
 };
 
 try {
@@ -61,7 +63,16 @@ try {
   }
   if (command === 'compare') {
     if (args.length !== 2) throw new Error('compare needs two capture labels.');
-    const { reportDir, totals } = await compare(config, args[0], args[1]);
+    const { reportDir, totals, pages } = await compare(config, args[0], args[1]);
+    if (values.list) {
+      const signed = (n) => (n ? `${n > 0 ? '+' : ''}${n}px` : '');
+      for (const page of pages) {
+        for (const s of page.sections) {
+          const extra = [s.heightDelta ? `height ${signed(s.heightDelta)}` : '', s.beforeDelta ? `space above ${signed(s.beforeDelta)}` : ''].filter(Boolean).join(', ');
+          console.log(`${page.path} @${page.width} ${s.key}: ${s.result} ${s.percent ?? '—'}%${extra ? ` (${extra})` : ''}`);
+        }
+      }
+    }
     console.log(`\n${totals.passRate}% of ${totals.sections} sections pass (warn ${totals.warn}, fail ${totals.fail}, missing ${totals.missing}); ${totals.textMissing} missing words; ${totals.metaDifferences} head differences; ${totals.statusDifferences} status differences.`);
     console.log(`Report: ${reportDir}/index.html`);
     process.exit(0);

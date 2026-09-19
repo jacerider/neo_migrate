@@ -29,7 +29,7 @@ export function renderReport(summary, rel) {
   const details = summary.pages.map((page, i) => {
     const sections = page.sections.map((s) => `
       <div class="section ${s.result}">
-        <h4>${esc(s.key)} ${badge(s.result)} ${s.percent ?? '—'}%${s.heightDelta ? ` · height ${s.heightDelta > 0 ? '+' : ''}${s.heightDelta}px` : ''}</h4>
+        <h4>${esc(s.key)} ${badge(s.result)} ${s.percent ?? '—'}%${s.heightDelta ? ` · height ${s.heightDelta > 0 ? '+' : ''}${s.heightDelta}px` : ''}${s.beforeDelta ? ` · space above ${s.beforeDelta > 0 ? '+' : ''}${s.beforeDelta}px` : ''}</h4>
         <div class="trio">
           <figure>${view(page.a, page.sizeA, s.a)}<figcaption>${esc(summary.a.label)}</figcaption></figure>
           <figure>${view(page.b, page.sizeB, s.b)}<figcaption>${esc(summary.b.label)}</figcaption></figure>

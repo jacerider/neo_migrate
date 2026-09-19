@@ -7,10 +7,10 @@ The screenshot comparison that proves the public site unchanged. Lives in `web/m
 | Command | Does |
 | --- | --- |
 | `cli.mjs capture --target=<t> --label=<l> [--only=/a,/b] [--widths=375,1440]` | Screenshots every visual URL in `migration/urls.json` at every width; checks every status URL. Writes `.neo-migrate/captures/<l>/`. |
-| `cli.mjs compare <a> <b>` | Compares two captures. Writes `.neo-migrate/reports/<a>__<b>/index.html` and `summary.json`. |
+| `cli.mjs compare <a> <b> [--list]` | Compares two captures. Writes `.neo-migrate/reports/<a>__<b>/index.html` and `summary.json`; `--list` also prints every section's result, height change and change in space above. |
 | `cli.mjs probe --target=<t> [--path=/] [--width=1440] [--depth=3] '<selector>'` | Prints unrounded boxes and key computed styles for the matching elements and their descendants. For the sub-pixel offsets a section diff points at, where the rounded boxes in `styles.json` look identical. |
 
-Before each shot the tool blocks tracking scripts, disables animation, scrolls through the page so lazy content loads, waits for fonts and images, hides `hide:` selectors and paints `mask:` selectors magenta. Each capture also records per section: position, visible text, and computed styles of the section and its headings, paragraphs, links, buttons and images (`styles.json`) — the measured values to build the new components from, instead of reading the old SCSS.
+Before each shot the tool blocks tracking scripts, disables animation and smooth scrolling, scrolls through the page so lazy content loads, waits for fonts and images, hides `hide:` selectors and paints `mask:` selectors magenta. Each capture also records per section: position, visible text, and computed styles of the section and its headings, paragraphs, links, buttons and images (`styles.json`) — the measured values to build the new components from, instead of reading the old SCSS.
 
 ## Reading a report
 
@@ -42,6 +42,8 @@ themes:
 ```
 
 The theme is the first whose `detect` selector is on the page. The Neo front theme gets its own entry in phase 3, using the same section names so keys line up.
+
+Sections are numbered by what is shown: a match that paints nothing gets no key. A section is measured by its border box, or with `box: painted` by what it paints — its own background or border if it has one, otherwise the text, images and painted boxes inside it, clipped to the page and to any clipping ancestor, ignoring visually hidden content and empty clearfix pseudo-elements. Use `painted` for content sections when one side spaces its items with margins and the other with padding; the report then shows the change in space above each section separately (`space above +6px`).
 
 ### Capturing the Neo theme before the cutover
 
