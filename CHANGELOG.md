@@ -1,5 +1,16 @@
 # Changelog
 
+## exo_toolbar items carry over to neo_toolbar
+
+**`drush neo-migrate:toolbar`** now reads exo_toolbar's items as well as
+escort's (from active config, or the sync directory once exo_toolbar is gone).
+exo's left rail becomes the start of neo's rail and its top bar the end; links,
+dividers and the add-content item are created as `exo_<id>`, the rest is covered
+by neo_toolbar's own items. Roles with `access exo toolbar` get
+`access neo_toolbar`. exo icon ids (`regular-cog`, `brand-facebook`) resolve to
+neo_icon's stock Font Awesome libraries, and a create item always sits under
+Home, wherever the legacy toolbar had it.
+
 ## Parity holds still for scripts that react to resizing
 
 **`prepare:`** in parity.yml lists expressions run in each page once it has

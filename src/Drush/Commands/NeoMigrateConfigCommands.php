@@ -194,7 +194,7 @@ final class NeoMigrateConfigCommands extends DrushCommands {
   }
 
   /**
-   * Rebuilds escort's items as neo_toolbar items. Creates config.
+   * Rebuilds escort's or exo_toolbar's items as neo_toolbar items. Creates config.
    */
   #[CLI\Command(name: 'neo-migrate:toolbar', aliases: ['nmt'])]
   #[CLI\Option(name: 'toolbar', description: 'The neo_toolbar to add items to.')]
@@ -215,11 +215,11 @@ final class NeoMigrateConfigCommands extends DrushCommands {
       $this->io()->text($theme ? "Toolbar shown only on the $theme theme." : 'Toolbar shown on every theme.');
     }
     $this->io()->table(
-      ['Escort item', 'Plugin', 'Action', 'neo_toolbar item', 'Note'],
-      array_map(static fn ($row) => [$row['escort'], $row['plugin'], $row['action'], $row['item'] ?? '', $row['note']], $report),
+      ['Legacy item', 'Plugin', 'Action', 'neo_toolbar item', 'Note'],
+      array_map(static fn ($row) => [$row['legacy'], $row['plugin'], $row['action'], $row['item'] ?? '', $row['note']], $report),
     );
     $roles = $this->toolbarImporter->grantAccess((bool) $options['dry-run']);
-    $this->io()->text('Roles given "access neo_toolbar" because they had "access escort": ' . (implode(', ', $roles) ?: 'none'));
+    $this->io()->text('Roles given "access neo_toolbar" because they had the legacy toolbar: ' . (implode(', ', $roles) ?: 'none'));
     $problems = array_filter($report, static fn ($row) => in_array($row['action'], ['missing', 'unmapped'], TRUE) || $row['note'] !== '' && !in_array($row['action'], ['covered', 'removed'], TRUE));
     if ($options['dry-run']) {
       $this->io()->note('Dry run: nothing saved.');

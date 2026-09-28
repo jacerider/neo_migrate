@@ -196,6 +196,21 @@ escort_plugins:
   node_manage: link
   divider: divider
 
+# exo_toolbar item plugins and the neo_toolbar item plugin each maps to.
+exo_toolbar_plugins:
+  admin_escape: favicon
+  image: favicon
+  user: user
+  local_tasks: local_tasks
+  local_actions: local_actions
+  link: link
+  node_add: create
+  divider: divider
+
+# exo_icon's Font Awesome packages. Their ids are `<package>-<name>`; neo_icon's
+# stock Font Awesome libraries know the same glyphs by `<name>` alone.
+exo_icon_packages: [regular, brand, solid, light, thin, duotone]
+
 # Where the legacy site_settings module's values go in neo_site_settings.
 # Each target is <bundle>.<field>; a list of source keys is joined with new
 # lines (neo_site_settings parses a multi-line address). Bundles listed under

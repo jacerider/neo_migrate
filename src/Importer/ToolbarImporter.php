@@ -13,23 +13,39 @@ use Drupal\neo_migrate\IconNameResolver;
 use Drupal\neo_migrate\LegacyCatalog;
 
 /**
- * Rebuilds a site's escort items as neo_toolbar items.
+ * Rebuilds a site's legacy toolbar items (escort or exo_toolbar) as
+ * neo_toolbar items.
  *
- * Escort's items are read from active config while escort is installed, and
- * from the sync directory once it is not, so the import can run either side
- * of escort's uninstall. Items neo_toolbar's own install already provides —
- * the user menu, local tasks, local actions, the home link — are reported as
- * covered rather than duplicated. Created items are named `escort_<id>`, so a
- * second run updates them instead of adding more. The links neo_toolbar puts
- * on the rail by default (Content, User Accounts) are removed: the legacy
- * toolbar decides which links the rail carries.
+ * The legacy items are read from active config while their module is
+ * installed, and from the sync directory once it is not, so the import can run
+ * either side of the uninstall. Items neo_toolbar's own install already
+ * provides — the user menu, local tasks, local actions, the home link — are
+ * reported as covered rather than duplicated. Created items are named
+ * `escort_<id>` or `exo_<id>`, so a second run updates them instead of adding
+ * more. The links neo_toolbar puts on the rail by default (Content, User
+ * Accounts) are removed: the legacy toolbar decides which links the rail
+ * carries.
  */
 final class ToolbarImporter {
 
   /**
-   * Escort plugins whose job a stock neo_toolbar item already does.
+   * Each legacy toolbar: its config prefix, access permission, catalog plugin
+   * map and the plugins whose job a stock neo_toolbar item already does.
    */
-  private const COVERED = ['admin_escape', 'branding', 'user', 'current_user', 'local_tasks', 'local_actions'];
+  private const SOURCES = [
+    'escort' => [
+      'prefix' => 'escort.escort.',
+      'permission' => 'access escort',
+      'plugins' => 'escort_plugins',
+      'covered' => ['admin_escape', 'branding', 'user', 'current_user', 'local_tasks', 'local_actions'],
+    ],
+    'exo' => [
+      'prefix' => 'exo_toolbar.exo_toolbar_item.',
+      'permission' => 'access exo toolbar',
+      'plugins' => 'exo_toolbar_plugins',
+      'covered' => ['admin_escape', 'image', 'user', 'local_tasks', 'local_actions'],
+    ],
+  ];
 
   public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
@@ -53,16 +69,17 @@ final class ToolbarImporter {
     $storage = $this->entityTypeManager->getStorage('neo_toolbar_item');
     /** @var \Drupal\Core\Config\Entity\ConfigEntityInterface[] $existing */
     $existing = $storage->loadByProperties(['toolbar' => $toolbar]);
-    $plugins = $this->catalog->get('escort_plugins');
+    [$source, $legacyItems] = $this->legacyItems();
+    $plugins = $source ? $this->catalog->get(self::SOURCES[$source]['plugins']) : [];
     $report = [];
 
-    foreach ($this->escortItems() as $escort) {
+    foreach ($legacyItems as $escort) {
       $id = (string) $escort['id'];
       $plugin = (string) $escort['plugin'];
       $settings = $escort['settings'] ?? [];
-      $row = ['escort' => $id, 'plugin' => $plugin, 'action' => '', 'item' => NULL, 'note' => ''];
+      $row = ['legacy' => $id, 'plugin' => $plugin, 'action' => '', 'item' => NULL, 'note' => ''];
 
-      if (in_array($plugin, self::COVERED, TRUE)) {
+      if (in_array($plugin, self::SOURCES[$source]['covered'], TRUE)) {
         $target = $plugins[$plugin] ?? $plugin;
         $match = array_filter($existing, static fn ($item) => $item->get('plugin') === $target);
         $row['action'] = $match ? 'covered' : 'missing';
@@ -76,6 +93,8 @@ final class ToolbarImporter {
         'link' => $this->link($settings, (string) ($settings['url'] ?? '')),
         'node_manage' => $this->link($settings, 'internal:/admin/content?type=' . ($settings['bundle'] ?? '')),
         'node_add' => $this->create($settings),
+        // exo_toolbar's dividers head a group; neo's carry no title.
+        'divider' => $source === 'exo' ? ['plugin' => 'divider', 'settings' => []] : NULL,
         default => NULL,
       };
       if ($values === NULL) {
@@ -83,10 +102,22 @@ final class ToolbarImporter {
         continue;
       }
 
-      $itemId = 'escort_' . $id;
-      $label = (string) ($settings['text'] ?? '') ?: (string) ($settings['label'] ?? $id);
-      // Escort's right-hand regions sit at the end of neo_toolbar's rail.
-      $values['region'] = str_ends_with((string) ($escort['region'] ?? ''), 'right') ? 'side_end' : 'side_start';
+      $itemId = $source . '_' . $id;
+      $label = (string) ($settings['text'] ?? '') ?: (string) ($settings['title'] ?? '') ?: (string) ($settings['label'] ?? $id);
+      // Escort's right-hand regions and exo_toolbar's top bar sit at the end
+      // of neo_toolbar's rail; exo_toolbar's left rail at its start.
+      $region = (string) ($escort['region'] ?? '');
+      $values['region'] = match ($source) {
+        'exo' => $region === 'left' ? 'side_start' : 'side_end',
+        default => str_ends_with($region, 'right') ? 'side_end' : 'side_start',
+      };
+      if ($values['plugin'] === 'create') {
+        // Neo puts the create menu under Home, wherever the legacy one sat.
+        $values['region'] = 'side_start';
+      }
+      if ($values['plugin'] === 'divider') {
+        $label = 'Divider';
+      }
       $values += [
         'id' => $itemId,
         'label' => $label,
@@ -96,6 +127,9 @@ final class ToolbarImporter {
       ];
       $collisions = array_filter($existing, static fn ($item, $key) => $key !== $itemId && strcasecmp((string) $item->label(), $label) === 0, ARRAY_FILTER_USE_BOTH);
       $notes = [];
+      if ($values['plugin'] === 'divider' && !empty($settings['title'])) {
+        $notes[] = sprintf('its title "%s" is not shown (neo dividers carry none)', $settings['title']);
+      }
       if (!empty($values['_unresolved_icon'])) {
         $notes[] = 'icon ' . $values['_unresolved_icon'] . ' has no neo_icon match';
       }
@@ -150,7 +184,7 @@ final class ToolbarImporter {
       if (!$item || $item->get('toolbar') !== $toolbar) {
         continue;
       }
-      $report[] = ['escort' => '', 'plugin' => 'link', 'action' => 'removed', 'item' => $item->id(), 'note' => sprintf('neo_toolbar\'s default "%s" link; the legacy toolbar had none', $item->label())];
+      $report[] = ['legacy' => '', 'plugin' => 'link', 'action' => 'removed', 'item' => $item->id(), 'note' => sprintf('neo_toolbar\'s default "%s" link; the legacy toolbar had none', $item->label())];
       if (!$dryRun) {
         $item->delete();
       }
@@ -228,22 +262,23 @@ final class ToolbarImporter {
   }
 
   /**
-   * Grants the toolbar to every role that could use escort.
+   * Grants the toolbar to every role that could use the legacy toolbar.
    *
-   * Roles are read from active config while escort is installed and from the
-   * sync directory once it is not — uninstalling escort strips its permission
-   * from the active roles.
+   * Roles are read from active config while the legacy toolbar is installed
+   * and from the sync directory once it is not — uninstalling it strips its
+   * permission from the active roles.
    *
    * @return list<string>
    *   The roles granted `access neo_toolbar`.
    */
   public function grantAccess(bool $dryRun = FALSE): array {
     $granted = [];
+    $permissions = array_column(self::SOURCES, 'permission');
     $roles = $this->entityTypeManager->getStorage('user_role')->loadMultiple();
     foreach ($roles as $id => $role) {
       /** @var \Drupal\user\RoleInterface $role */
-      $had = $role->hasPermission('access escort')
-        || in_array('access escort', $this->syncStorage->read("user.role.$id")['permissions'] ?? [], TRUE);
+      $synced = $this->syncStorage->read("user.role.$id")['permissions'] ?? [];
+      $had = (bool) array_filter($permissions, static fn ($permission) => $role->hasPermission($permission) || in_array($permission, $synced, TRUE));
       if (!$had || $role->isAdmin()) {
         continue;
       }
@@ -302,18 +337,27 @@ final class ToolbarImporter {
   }
 
   /**
-   * Escort's items, from active config or else the sync directory.
+   * The legacy toolbar's items and which toolbar they come from.
    *
-   * @return list<array>
+   * Escort first, then exo_toolbar; each from active config or else the sync
+   * directory. exo_toolbar's items of other toolbars than its default are left
+   * out.
+   *
+   * @return array{0: ?string, 1: list<array>}
    */
-  private function escortItems(): array {
-    $names = $this->configFactory->listAll('escort.escort.');
-    $items = $names
-      ? array_map(fn ($name) => $this->configFactory->get($name)->getRawData(), $names)
-      : array_map(fn ($name) => $this->syncStorage->read($name), $this->syncStorage->listAll('escort.escort.'));
-    $items = array_filter($items, static fn ($item) => is_array($item) && ($item['status'] ?? TRUE));
-    usort($items, static fn ($a, $b) => [$a['region'] ?? '', $a['weight'] ?? 0] <=> [$b['region'] ?? '', $b['weight'] ?? 0]);
-    return $items;
+  private function legacyItems(): array {
+    foreach (self::SOURCES as $source => $info) {
+      $names = $this->configFactory->listAll($info['prefix']);
+      $items = $names
+        ? array_map(fn ($name) => $this->configFactory->get($name)->getRawData(), $names)
+        : array_map(fn ($name) => $this->syncStorage->read($name), $this->syncStorage->listAll($info['prefix']));
+      $items = array_filter($items, static fn ($item) => is_array($item) && ($item['status'] ?? TRUE) && ($item['toolbar'] ?? 'default') === 'default');
+      if ($items) {
+        usort($items, static fn ($a, $b) => [$a['region'] ?? '', $a['weight'] ?? 0] <=> [$b['region'] ?? '', $b['weight'] ?? 0]);
+        return [$source, $items];
+      }
+    }
+    return [NULL, []];
   }
 
 }
