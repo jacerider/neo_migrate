@@ -1,5 +1,16 @@
 # Changelog
 
+## Each theme gets its own dialog framework
+
+exo_modal and neo_modal both replace core's dialog libraries, and neo_modal kept
+exo_modal's dependencies, so every page loaded both; in the back theme exo_modal
+still opened core dialogs (its `hook_ajax_render_alter` rewrites every
+`openDialog` into its own commands), and webform's dialog listeners threw on
+exo's events. Library definitions are built per theme: a Neo theme now gets
+neo_modal alone (plus the jQuery.once exo's remaining admin scripts need), and
+its dialog commands are hidden from exo_modal's rewrite; a legacy theme gets
+core's dialog libraries exactly as exo_modal altered them.
+
 ## Legacy and Neo themes keep to their own icons, tooltips and fonts
 
 While exo and Neo are both installed, each suite reached into the other's

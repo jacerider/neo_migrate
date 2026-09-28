@@ -12,6 +12,7 @@ use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Extension\ThemeHandlerInterface;
 use Drupal\Core\Hook\Attribute\Hook;
 use Drupal\Core\Hook\Order\Order;
+use Drupal\Core\Serialization\Yaml;
 use Drupal\Core\Theme\ThemeManagerInterface;
 use Drupal\neo_migrate\LegacyCatalog;
 use Drupal\neo_migrate\Theme\ThemeFamily;
@@ -33,7 +34,8 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
  * form descriptions into tooltips, and each icon system attaches its global
  * icon fonts to every page, where the two share class names (IcoMoon's
  * `icon-<package>-<name>`) and restyle each other's icons. Legacy themes are
- * kept free of both, and the Neo themes of exo_icon's fonts.
+ * kept free of both, and the Neo themes of exo_icon's fonts. exo_modal and
+ * neo_modal both take over core's dialog libraries; each theme gets its own.
  */
 final class CoexistenceHooks {
 
@@ -53,6 +55,8 @@ final class CoexistenceHooks {
     private readonly ModuleExtensionList $moduleList,
     #[Autowire(service: 'neo_migrate.catalog')]
     private readonly LegacyCatalog $catalog,
+    #[Autowire(param: 'app.root')]
+    private readonly string $appRoot,
   ) {}
 
   /**
@@ -111,6 +115,82 @@ final class CoexistenceHooks {
   public static function withoutTooltip(array $element): array {
     $element['#tooltip'] = FALSE;
     return $element;
+  }
+
+  /**
+   * Gives each theme its own dialog framework.
+   *
+   * Implements hook_library_info_alter(), last. exo_modal and neo_modal both
+   * replace core/drupal.dialog and core/drupal.dialog.ajax. neo_modal runs
+   * later and swaps the scripts but keeps exo_modal's dependencies, so every
+   * page loaded both frameworks: in the back theme exo_modal still opened core
+   * dialogs, and webform's dialog listeners, handed exo's events through
+   * neo_modal's bridge without their arguments, threw. Library definitions are
+   * built per theme, with it active: a Neo theme gets neo_modal alone; a
+   * legacy theme gets core's definitions as exo_modal altered them, as before
+   * neo_modal was installed.
+   */
+  #[Hook('library_info_alter', order: Order::Last)]
+  public function libraryInfoAlter(array &$libraries, string $extension): void {
+    if ($extension !== 'core' || !isset($libraries['drupal.dialog'], $libraries['drupal.dialog.ajax'])
+      || !$this->moduleHandler->moduleExists('exo_modal') || !$this->moduleHandler->moduleExists('neo_modal')) {
+      return;
+    }
+    if (ThemeFamily::isNeo($this->themeManager->getActiveTheme())) {
+      // exo's own scripts on admin pages (exo.js, the list builder) call
+      // jQuery.once without declaring it; exo_modal's dialog libraries used to
+      // bring it along. Keep it, without exo_modal.
+      $libraries['drupal.dialog']['dependencies'] = array_values(array_filter(
+        $libraries['drupal.dialog']['dependencies'] ?? [],
+        static fn (string $library): bool => !str_starts_with($library, 'exo_modal/'),
+      ));
+      $libraries['drupal.dialog']['dependencies'][] = 'exo/jquery.once';
+      return;
+    }
+    $this->moduleHandler->loadInclude('exo_modal', 'module');
+    if (!function_exists('exo_modal_library_info_alter')) {
+      return;
+    }
+    $core = Yaml::decode((string) file_get_contents($this->appRoot . '/core/core.libraries.yml'));
+    $legacy = ['drupal.dialog' => $core['drupal.dialog'], 'drupal.dialog.ajax' => $core['drupal.dialog.ajax']];
+    exo_modal_library_info_alter($legacy, 'core');
+    $libraries['drupal.dialog'] = $legacy['drupal.dialog'];
+    $libraries['drupal.dialog.ajax'] = $legacy['drupal.dialog.ajax'];
+  }
+
+  /**
+   * Hides a Neo theme's dialog commands from exo_modal.
+   *
+   * Implements hook_ajax_render_alter(), first. exo_modal rewrites every
+   * `openDialog` into its own modal commands, in every theme; a Neo theme,
+   * which no longer loads exo_modal's scripts, then opens nothing. The
+   * commands are renamed before exo_modal sees them and restored after
+   * (restoreDialogCommands()). The legacy themes keep exo_modal's dialogs.
+   */
+  #[Hook('ajax_render_alter', order: Order::First)]
+  public function hideDialogCommands(array &$data): void {
+    if (!$this->moduleHandler->moduleExists('exo_modal') || !ThemeFamily::isNeo($this->themeManager->getActiveTheme())) {
+      return;
+    }
+    foreach ($data as &$command) {
+      if (in_array($command['command'] ?? NULL, ['openDialog', 'webformCloseDialog'], TRUE)) {
+        $command['command'] = 'neo_migrate:' . $command['command'];
+      }
+    }
+  }
+
+  /**
+   * Restores the dialog commands hideDialogCommands() renamed.
+   *
+   * Implements hook_ajax_render_alter(), last.
+   */
+  #[Hook('ajax_render_alter', order: Order::Last)]
+  public function restoreDialogCommands(array &$data): void {
+    foreach ($data as &$command) {
+      if (str_starts_with((string) ($command['command'] ?? ''), 'neo_migrate:')) {
+        $command['command'] = substr($command['command'], strlen('neo_migrate:'));
+      }
+    }
   }
 
   /**
