@@ -68,6 +68,34 @@ modules:
   # Config helpers.
   exo_config: { replacement: neo_config_flow, handling: judgment, phase: 5 }
 
+  # The exo suite (exo_alchemist sites). Submodules not listed here show up as
+  # unclassified on the first site that enables them.
+  exo: { replacement: neo, handling: remove, phase: 5, note: 'Base of the exo suite; uninstalled once nothing depends on it.' }
+  exo_alchemist: { replacement: neo_alchemist, handling: judgment, phase: 4, note: 'Each live component type becomes a neo component; Layout Builder overrides convert in place to the tree field. Its block_content rows go before it is uninstalled.' }
+  exo_alchemist_clone: { replacement: ~, handling: remove, phase: 5, note: 'entity_clone stays.' }
+  exo_layout_builder: { replacement: neo_alchemist, handling: remove, phase: 5, note: 'With it go core layout_builder and layout_discovery, once no display uses them.' }
+  exo_config_file: { replacement: neo_config_file, handling: mechanical, phase: 2, note: 'Holds the exo_icon package files; they move with the icon import.' }
+  exo_form: { replacement: neo_form, handling: judgment, phase: 3 }
+  exo_modal: { replacement: neo_modal, handling: judgment, phase: 3 }
+  exo_icon: { replacement: neo_icon, handling: mechanical, phase: 2, note: 'Packages import as unique neo_icon libraries, so stored <package>-<name> ids keep working.' }
+  exo_icon_admin: { replacement: neo_icon_admin, handling: mechanical, phase: 1 }
+  exo_icon_local_task: { replacement: neo_icon_local_task, handling: mechanical, phase: 1 }
+  exo_imagine: { replacement: neo_image, handling: judgment, phase: 3, note: 'Its responsive image settings become neo_image styles in the components.' }
+  exo_link: { replacement: 'neo link widget', handling: mechanical, phase: 2, note: 'Link fields with icons use neo''s neo_link widget and formatter.' }
+  exo_link_menu: { replacement: neo_menu_link, handling: mechanical, phase: 2, note: 'neo_menu_link reads the same data-icon attributes.' }
+  exo_linkit: { replacement: linkit, handling: remove, phase: 5, note: 'linkit''s own link widget replaces it.' }
+  exo_list_builder: { replacement: 'core admin views (neo_back)', handling: remove, phase: 5 }
+  exo_list_builder_content: { replacement: 'core admin views (neo_back)', handling: remove, phase: 5 }
+  exo_list_builder_media: { replacement: 'core admin views (neo_back)', handling: remove, phase: 5 }
+  exo_list_builder_redirect: { replacement: 'core admin views (neo_back)', handling: remove, phase: 5 }
+  exo_list_builder_user: { replacement: 'core admin views (neo_back)', handling: remove, phase: 5 }
+  exo_list_builder_webform: { replacement: 'core admin views (neo_back)', handling: remove, phase: 5 }
+  exo_media: { replacement: ~, handling: remove, phase: 5, note: 'Core media library plus neo_image.' }
+  exo_menu: { replacement: 'front theme + neo_modal', handling: judgment, phase: 3, note: 'Dropdown menus in the front header; the mobile menu becomes a neo_modal slide menu block.' }
+  exo_fixed: { replacement: 'front theme', handling: judgment, phase: 3, note: 'The fixed header is the front theme''s.' }
+  exo_site_settings: { replacement: neo_site_settings, handling: mechanical, phase: 2 }
+  exo_toolbar: { replacement: neo_toolbar, handling: mechanical, phase: 1 }
+
 themes:
   aeon: { replacement: neo_front, handling: judgment, phase: 3, note: 'Sub-themes of aeon are rebuilt as the neo "front" theme.' }
   seven: { replacement: neo_back, handling: mechanical, phase: 5 }
@@ -84,6 +112,7 @@ keep:
   - config_split
   - crop
   - devel
+  - disable_user_1_edit
   - editor_advanced_link
   - entity
   - entity_clone
@@ -91,22 +120,29 @@ keep:
   - field_group
   - focal_point
   - google_tag
+  - googlereviews
   - key
   - linkit
   - mailsystem
+  - menu_admin_per_menu
   - metatag
   - metatag_open_graph
   - metatag_twitter_cards
+  - office_hours
   - pantheon_advanced_page_cache
   - pathauto
+  - quicklink
   - recaptcha
   - redirect
+  - redirect_404
   - redis
   - reroute_email
+  - role_delegation
   - schema_metatag
   - schema_organization
   - schema_web_page
   - schema_web_site
+  - sendgrid_integration
   - simple_sitemap
   - smtp
   - stage_file_proxy
@@ -131,6 +167,7 @@ theme_layer: [ux, ux_aside, ux_dialog, ux_form, ux_header, ux_menu, ux_offcanvas
 tokens:
   - paragraph_meta_smart_
   - paragraphs_summary
+  - exo_alchemist_smart_
 
 # Legacy tokens and the Neo tokens that replace them in metatag defaults.
 token_map:
@@ -138,6 +175,10 @@ token_map:
   '[node:paragraph_meta_smart_description:value]': '[neo:description]'
   '[node:paragraph_meta_smart_image:meta:url]': '[neo:image]'
   '[node:paragraph_meta_smart_image:url]': '[neo:image]'
+  '[node:exo_alchemist_smart_title:value]': '[neo:title]'
+  '[node:exo_alchemist_smart_description:value]': '[neo:description]'
+  '[node:exo_alchemist_smart_image:meta:url]': '[neo:image]'
+  '[node:exo_alchemist_smart_image:url]': '[neo:image]'
 
 # Escort item plugins and the neo_toolbar item plugin each maps to.
 escort_plugins:
@@ -214,6 +255,7 @@ code_patterns:
   escort: 'escort'
   aeon: 'aeon'
   paragraph: 'paragraph'
+  exo: 'exo'
   colorbox: 'colorbox'
   ux: 'ux-'
   foundation: 'foundation'

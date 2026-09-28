@@ -12,10 +12,13 @@ reviewing. _remove_: uninstalled at teardown, nothing carried over. _skip_: pres
 carried over. _unclassified_: not in the catalog; a person decides, and the catalog learns.
 
 **Host entity** — an entity whose field holds a tree: on a paragraphs site, a node with an
-entity_reference_revisions field targeting paragraphs.
+entity_reference_revisions field targeting paragraphs; on an exo_alchemist site, a node whose display
+lets it override its Layout Builder layout (`layout_builder__layout`).
 
 **Tree** — the ordered items a host field holds, with nested items beneath the fields that nest them.
 Read by a **source adapter**, so the rest of the module never depends on which system built it.
+On an exo_alchemist site the items are components (named by component id, fields by component field
+name), sequences nest them, modifiers are their `behavior`, and a field the editor hid is `hidden`.
 
 **Live** — an item a host's current revision renders. The audit counts live items separately from
 rows in the database, which include items only old revisions reference.

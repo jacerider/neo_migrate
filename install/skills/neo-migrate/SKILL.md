@@ -1,6 +1,6 @@
 ---
 name: neo-migrate
-description: Migrate a legacy Drupal site (paragraphs, micon, escort, real_favicon, aeon/ux themes) onto the Neo suite with the neo_migrate module, phase by phase behind review gates, proving the frontend unchanged with screenshot parity. Use when asked to migrate, convert or move a site to Neo, to resume a migration (a `migration/state.yml` exists), to audit a legacy site, or to run or read a parity comparison.
+description: Migrate a legacy Drupal site (paragraphs or exo_alchemist, micon or exo_icon, escort or exo_toolbar, real_favicon, aeon/ux themes and the exo suite) onto the Neo suite with the neo_migrate module, phase by phase behind review gates, proving the frontend unchanged with screenshot parity. Use when asked to migrate, convert or move a site to Neo, to resume a migration (a `migration/state.yml` exists), to audit a legacy site, or to run or read a parity comparison.
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 

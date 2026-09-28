@@ -56,13 +56,20 @@ final class NeoMigrateCommands extends DrushCommands {
     $json = $this->workspace->writeJson('audit.json', $report, $options['dir']);
     $md = $this->workspace->writeText('audit.md', $this->markdown->render($report, $this->siteName()), $options['dir']);
     $summary = $report['summary'];
-    $this->io()->definitionList(
-      ['Host entities' => $summary['hosts']],
-      ['Paragraph types (live / total)' => $summary['paragraph_types_live'] . ' / ' . $summary['paragraph_types']],
-      ['Paragraphs (live / in database)' => $summary['paragraphs_live'] . ' / ' . $summary['paragraphs_in_database']],
-      ['Config deleted on removal' => $summary['config_deleted_on_removal']],
-      ...array_map(static fn ($handling, $count) => ["Findings: $handling" => $count], array_keys($summary['handling']), $summary['handling']),
-    );
+    $rows = [['Host entities' => $summary['hosts']]];
+    if (!empty($report['paragraphs'])) {
+      $rows[] = ['Paragraph types (live / total)' => $summary['paragraph_types_live'] . ' / ' . $summary['paragraph_types']];
+      $rows[] = ['Paragraphs (live / in database)' => $summary['paragraphs_live'] . ' / ' . $summary['paragraphs_in_database']];
+    }
+    if (!empty($report['components'])) {
+      $rows[] = ['Component types (live / total)' => $summary['component_types_live'] . ' / ' . $summary['component_types']];
+      $rows[] = ['Components (live / in database)' => $summary['components_live'] . ' / ' . $summary['components_in_database']];
+    }
+    $rows[] = ['Config deleted on removal' => $summary['config_deleted_on_removal']];
+    foreach ($summary['handling'] as $handling => $count) {
+      $rows[] = ["Findings: $handling" => $count];
+    }
+    $this->io()->definitionList(...$rows);
     $this->io()->note('Warnings about displays or components being "disabled" come from core\'s dependency dry run working on copies; nothing was saved.');
     $this->io()->success("Wrote $json and $md.");
   }

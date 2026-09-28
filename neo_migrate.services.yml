@@ -13,9 +13,20 @@ services:
     class: Drupal\neo_migrate\Source\ParagraphsSource
     arguments: ['@entity_field.manager', '@module_handler', '@neo_migrate.field_normalizer']
 
+  # exo_alchemist is optional: most sites have one source or the other.
+  neo_migrate.source.exo_alchemist:
+    class: Drupal\neo_migrate\Source\ExoAlchemistSource
+    arguments: ['@entity_type.manager', '@module_handler', '@neo_migrate.field_normalizer', '@?plugin.manager.exo_component']
+
+  # Every adapter that applies to the site, read as one.
+  neo_migrate.source:
+    class: Drupal\neo_migrate\Source\SourceChain
+    arguments:
+      - ['@neo_migrate.source.paragraphs', '@neo_migrate.source.exo_alchemist']
+
   neo_migrate.inventory:
     class: Drupal\neo_migrate\Inventory
-    arguments: ['@entity_type.manager', '@neo_migrate.source.paragraphs', '@neo_migrate.field_normalizer', '@path_alias.manager']
+    arguments: ['@entity_type.manager', '@neo_migrate.source', '@neo_migrate.field_normalizer', '@path_alias.manager']
 
   neo_migrate.url_collector:
     class: Drupal\neo_migrate\UrlCollector
@@ -39,6 +50,7 @@ services:
       - '@database'
       - '@neo_migrate.catalog'
       - '@neo_migrate.source.paragraphs'
+      - '@neo_migrate.source.exo_alchemist'
       - '@neo_migrate.inventory'
       - '%app.root%'
 
@@ -104,7 +116,7 @@ services:
     class: Drupal\neo_migrate\Verify\ContentVerifier
     arguments:
       - '@entity_type.manager'
-      - '@neo_migrate.source.paragraphs'
+      - '@neo_migrate.source'
       - '@neo_migrate.tree_converter'
       - '@neo_migrate.field_normalizer'
       - '@path_alias.manager'

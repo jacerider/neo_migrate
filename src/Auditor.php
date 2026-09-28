@@ -16,6 +16,7 @@ use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Extension\ThemeExtensionList;
 use Drupal\Core\Extension\ThemeHandlerInterface;
 use Drupal\Core\Serialization\Yaml;
+use Drupal\neo_migrate\Source\ExoAlchemistSource;
 use Drupal\neo_migrate\Source\ParagraphsSource;
 
 /**
@@ -24,7 +25,8 @@ use Drupal\neo_migrate\Source\ParagraphsSource;
  * Read-only. The report is the first thing a person reviews: it is where the
  * size of the job, the per-site decisions and the surprises (dangling icons,
  * orphan paragraph bundles, config that uninstalling would delete) show up
- * before any work is done.
+ * before any work is done. Paragraphs and exo_alchemist sites are both read;
+ * each section is empty when its system is not installed.
  */
 final class Auditor {
 
@@ -50,6 +52,7 @@ final class Auditor {
     private readonly Connection $database,
     private readonly LegacyCatalog $catalog,
     private readonly ParagraphsSource $paragraphs,
+    private readonly ExoAlchemistSource $exo,
     private readonly Inventory $inventory,
     private readonly string $appRoot,
   ) {}
@@ -64,11 +67,16 @@ final class Auditor {
       'generated' => date('c'),
       'site' => $this->site(),
       'extensions' => $this->extensions(),
+      'hosts' => $inventory['hosts'],
       'paragraphs' => $this->paragraphTypes($inventory),
+      'components' => $this->componentTypes($inventory),
       'icons' => $this->icons($selectors, $inventory),
+      'exo_icons' => $this->exoIcons($inventory),
       'favicon' => $this->favicon(),
       'toolbar' => $this->toolbar(),
+      'exo_toolbar' => $this->exoToolbar(),
       'site_settings' => $this->siteSettings(),
+      'exo_site_settings' => $this->exoSiteSettings(),
       'metatags' => $this->metatags(),
       'theme' => $this->theme(),
       'code' => $this->code(),
@@ -87,7 +95,8 @@ final class Auditor {
       if (!$theme || !$this->themeHandler->themeExists($theme)) {
         return [];
       }
-      return [$theme, ...array_keys($this->themeHandler->getTheme($theme)->base_themes ?? [])];
+      // base_themes lists the oldest ancestor first; the chain reads upwards.
+      return [$theme, ...array_reverse(array_keys($this->themeHandler->getTheme($theme)->base_themes ?? []))];
     };
     return [
       'drupal' => \Drupal::VERSION,
@@ -232,6 +241,120 @@ final class Auditor {
   private function widget(string $entityTypeId, string $bundle, string $field): ?string {
     $display = $this->configFactory->get("core.entity_form_display.$entityTypeId.$bundle.default")->get("content.$field.type");
     return $display ?: NULL;
+  }
+
+  /**
+   * exo_alchemist components: their fields, nesting, hosts and use.
+   *
+   * Counted from the inventory, so `live` is what current revisions render:
+   * top-level items and those nested in a sequence, the modifier values they
+   * set and the fields editors hid. `in_database` includes blocks only old
+   * revisions reference; all of them go before exo_alchemist is uninstalled.
+   */
+  private function componentTypes(array $inventory): array {
+    if (!$this->exo->applies()) {
+      return [];
+    }
+    $counts = $inventory['counts'];
+    $query = $this->database->select('block_content_field_data', 'b')->fields('b', ['type'])->groupBy('b.type');
+    $query->addExpression('COUNT(*)', 'total');
+    $inDatabase = array_map('intval', $query->execute()->fetchAllKeyed());
+
+    $use = [];
+    $walk = function (array $items, bool $nested) use (&$walk, &$use): void {
+      foreach ($items as $item) {
+        if (!empty($item['missing'])) {
+          continue;
+        }
+        $bundle = $item['bundle'];
+        $use[$bundle] ??= ['top' => 0, 'nested' => 0, 'modifiers' => [], 'hidden' => [], 'default' => 0];
+        $use[$bundle][$nested ? 'nested' : 'top']++;
+        $use[$bundle]['default'] += empty($item['placement']['default']) ? 0 : 1;
+        $flatten = function (array $values, string $prefix) use (&$flatten, &$use, $bundle): void {
+          foreach ($values as $key => $value) {
+            if (is_array($value)) {
+              $flatten($value, "$prefix$key.");
+            }
+            elseif ($value !== '' && $value !== NULL) {
+              $use[$bundle]['modifiers']["$prefix$key"][(string) $value] = ($use[$bundle]['modifiers']["$prefix$key"][(string) $value] ?? 0) + 1;
+            }
+          }
+        };
+        $flatten($item['behavior']['modifiers'] ?? [], '');
+        foreach ($item['fields'] as $name => $field) {
+          if (!empty($field['hidden'])) {
+            $use[$bundle]['hidden'][$name] = ($use[$bundle]['hidden'][$name] ?? 0) + 1;
+          }
+          if (isset($field['children'])) {
+            $walk($field['children'], TRUE);
+          }
+        }
+      }
+    };
+    foreach ($inventory['entities'] as $entity) {
+      foreach ($entity['trees'] as $tree) {
+        $walk($tree, FALSE);
+      }
+    }
+
+    $types = [];
+    $orphans = [];
+    foreach ($this->exo->definitions() as $bundle => $definition) {
+      $id = $definition['id'];
+      if ($id === NULL) {
+        $orphans[$bundle] = $inDatabase[$bundle] ?? 0;
+        continue;
+      }
+      $live = $counts[$id]['live'] ?? 0;
+      $types[$id] = [
+        'bundle' => $bundle,
+        'label' => $definition['label'],
+        'provider' => $definition['provider'],
+        'fields' => $definition['fields'],
+        'modifier_groups' => $definition['modifiers'],
+        'live' => $live,
+        'published' => $counts[$id]['published'] ?? 0,
+        'top' => $use[$id]['top'] ?? 0,
+        'nested' => $use[$id]['nested'] ?? 0,
+        'on_default_layout' => $use[$id]['default'] ?? 0,
+        'hosts' => $counts[$id]['hosts'] ?? 0,
+        'host_bundles' => $counts[$id]['host_bundles'] ?? [],
+        'modifiers' => $use[$id]['modifiers'] ?? [],
+        'hidden' => $use[$id]['hidden'] ?? [],
+        'in_database' => $inDatabase[$bundle] ?? 0,
+        'handling' => $live ? 'judgment' : 'skip',
+      ];
+    }
+    ksort($types);
+
+    $hosts = [];
+    foreach ($inventory['hosts'] as $host) {
+      if (($host['source'] ?? NULL) !== $this->exo->id()) {
+        continue;
+      }
+      foreach ($host['bundles'] as $bundle) {
+        $entities = array_filter($inventory['entities'], static fn ($e) => $e['entity_type'] === $host['entity_type'] && $e['bundle'] === $bundle);
+        $default = array_filter($entities, static function ($e) use ($host) {
+          $tree = $e['trees'][$host['field']] ?? [];
+          return $tree && !empty($tree[0]['placement']['default']);
+        });
+        $hosts[] = [
+          'entity_type' => $host['entity_type'],
+          'bundle' => $bundle,
+          'field' => $host['field'],
+          'entities' => count($entities),
+          'default_layout' => count($default),
+        ];
+      }
+    }
+
+    return [
+      'types' => $types,
+      'hosts' => $hosts,
+      'orphans' => $orphans,
+      'total_in_database' => array_sum(array_intersect_key($inDatabase, $this->exo->definitions())),
+      'total_live' => array_sum(array_column($types, 'live')),
+    ];
   }
 
   /**
@@ -390,6 +513,158 @@ final class Auditor {
       $walk($this->configFactory->get($name)->getRawData(), $name, '');
     }
     return $found;
+  }
+
+  /**
+   * exo_icon packages and every place an exo icon id is stored.
+   *
+   * Ids are `<package>-<name>`. Component icon fields are counted from the
+   * inventory (live values only); menu links carry them as data-icon
+   * attributes (exo_link_menu), the same as micon did.
+   */
+  private function exoIcons(array $inventory): array {
+    if (!$this->moduleHandler->moduleExists('exo_icon')) {
+      return [];
+    }
+    /** @var \Drupal\exo_icon\ExoIconRepository $repository */
+    $repository = \Drupal::service('exo_icon.repository');
+    $known = [];
+    foreach ($repository->getDefinitions() as $id => $definition) {
+      $known[$definition['id'] ?? $id] = TRUE;
+    }
+    $packages = [];
+    foreach ($this->entityTypeManager->getStorage('exo_icon_package')->loadMultiple() as $id => $package) {
+      /** @var \Drupal\exo_icon\Entity\ExoIconPackageInterface $package */
+      $packages[$id] = [
+        'label' => (string) $package->label(),
+        'status' => $package->status(),
+        'type' => $package->getType(),
+        'global' => $package->isGlobal(),
+        'icons' => count($package->getDefinitions()),
+      ];
+    }
+
+    $live = [];
+    $collect = function (array $fields) use (&$collect, &$live): void {
+      foreach ($fields as $field) {
+        if (($field['component_type'] ?? NULL) === 'icon' || ($field['type'] ?? NULL) === 'icon') {
+          foreach ($field['items'] ?? [] as $item) {
+            if (!empty($item['value'])) {
+              $live[$item['value']] = ($live[$item['value']] ?? 0) + 1;
+            }
+          }
+        }
+        foreach ($field['children'] ?? [] as $child) {
+          $collect($child['fields'] ?? []);
+        }
+      }
+    };
+    foreach ($inventory['entities'] as $entity) {
+      $collect($entity['fields']);
+      foreach ($entity['trees'] as $tree) {
+        foreach ($tree as $item) {
+          $collect($item['fields'] ?? []);
+        }
+      }
+    }
+    arsort($live);
+
+    $menu = [];
+    if ($this->database->schema()->tableExists('menu_link_content_data')) {
+      $rows = $this->database->select('menu_link_content_data', 'm')
+        ->fields('m', ['id', 'menu_name', 'title', 'link__options'])
+        ->condition('link__options', '%data-icon%', 'LIKE')
+        ->execute();
+      foreach ($rows as $row) {
+        $attributes = (@unserialize((string) $row->link__options, ['allowed_classes' => FALSE]) ?: [])['attributes'] ?? [];
+        $menu[] = ['id' => (int) $row->id, 'menu' => $row->menu_name, 'title' => $row->title, 'icon' => $attributes['data-icon'] ?? NULL, 'position' => $attributes['data-icon-position'] ?? NULL];
+      }
+    }
+
+    $config = [];
+    $walk = function ($data, string $name, string $path) use (&$walk, &$config, $known): void {
+      if (is_array($data)) {
+        foreach ($data as $key => $value) {
+          $walk($value, $name, $path === '' ? (string) $key : "$path.$key");
+        }
+        return;
+      }
+      if (is_string($data) && isset($known[$data])) {
+        $config[] = ['config' => $name, 'key' => $path, 'value' => $data];
+      }
+    };
+    foreach ($this->configFactory->listAll() as $name) {
+      if (!str_starts_with($name, 'exo_icon.') && !str_starts_with($name, 'exo_config_file.')) {
+        $walk($this->configFactory->get($name)->getRawData(), $name, '');
+      }
+    }
+
+    $values = array_merge(array_keys($live), array_filter(array_column($menu, 'icon')));
+    return [
+      'packages' => $packages,
+      'known_icons' => count($known),
+      'live' => $live,
+      'menu_links' => $menu,
+      'config' => $config,
+      'dangling' => array_values(array_unique(array_filter($values, static fn ($value) => !isset($known[$value])))),
+    ];
+  }
+
+  /**
+   * exo_toolbar toolbars and their items.
+   */
+  private function exoToolbar(): array {
+    if (!$this->moduleHandler->moduleExists('exo_toolbar')) {
+      return [];
+    }
+    $toolbars = [];
+    foreach ($this->entityTypeManager->getStorage('exo_toolbar')->loadMultiple() as $id => $toolbar) {
+      $toolbars[$id] = ['label' => (string) $toolbar->label(), 'status' => $toolbar->status()];
+    }
+    $items = [];
+    foreach ($this->entityTypeManager->getStorage('exo_toolbar_item')->loadMultiple() as $id => $item) {
+      $settings = $item->get('settings') ?? [];
+      $items[] = [
+        'id' => $id,
+        'toolbar' => $item->get('toolbar'),
+        'plugin' => (string) $item->get('plugin'),
+        'region' => $item->get('region'),
+        'weight' => $item->get('weight'),
+        'status' => $item->status(),
+        'title' => $settings['title'] ?? NULL,
+        'url' => $settings['url'] ?? NULL,
+        'icon' => $settings['icon'] ?? NULL,
+      ];
+    }
+    usort($items, static fn ($a, $b) => [$a['toolbar'], $a['region'], $a['weight']] <=> [$b['toolbar'], $b['region'], $b['weight']]);
+    return ['toolbars' => $toolbars, 'items' => $items];
+  }
+
+  /**
+   * exo_site_settings bundles, their fields and which hold a value.
+   */
+  private function exoSiteSettings(): array {
+    if (!$this->moduleHandler->moduleExists('exo_site_settings')) {
+      return [];
+    }
+    $types = [];
+    foreach ($this->entityTypeManager->getStorage('exo_site_settings_type')->loadMultiple() as $id => $type) {
+      $fields = [];
+      foreach ($this->entityFieldManager->getFieldDefinitions('exo_site_settings', $id) as $name => $definition) {
+        if (!$definition->getFieldStorageDefinition()->isBaseField()) {
+          $fields[$name] = $definition->getType();
+        }
+      }
+      $types[$id] = ['label' => (string) $type->label(), 'fields' => $fields, 'filled' => []];
+    }
+    foreach ($this->entityTypeManager->getStorage('exo_site_settings')->loadMultiple() as $settings) {
+      foreach (array_keys($types[$settings->bundle()]['fields'] ?? []) as $name) {
+        if ($settings->hasField($name) && !$settings->get($name)->isEmpty()) {
+          $types[$settings->bundle()]['filled'][] = $name;
+        }
+      }
+    }
+    return $types;
   }
 
   /**
@@ -621,6 +896,21 @@ final class Auditor {
         'note' => sprintf('%d live on %d host(s), %d in database', $type['live'], $type['hosts'], $type['in_database']),
       ];
     }
+    foreach ($report['components']['types'] ?? [] as $id => $type) {
+      $findings[] = [
+        'area' => 'component',
+        'item' => $id,
+        'handling' => $type['handling'],
+        'replacement' => $type['live'] ? 'component' : NULL,
+        'note' => sprintf('%d live (%d top-level, %d nested) on %d host(s), %d in database', $type['live'], $type['top'], $type['nested'], $type['hosts'], $type['in_database']),
+      ];
+    }
+    foreach ($report['components']['orphans'] ?? [] as $bundle => $count) {
+      $findings[] = ['area' => 'component', 'item' => $bundle, 'handling' => 'remove', 'replacement' => NULL, 'note' => "$count in database with no component definition; delete before uninstalling exo_alchemist"];
+    }
+    foreach ($report['exo_icons']['dangling'] ?? [] as $value) {
+      $findings[] = ['area' => 'icon', 'item' => $value, 'handling' => 'judgment', 'replacement' => NULL, 'note' => 'Stored in live content or a menu link, but in no exo_icon package; needs a fallback'];
+    }
     foreach ($report['paragraphs']['orphans'] ?? [] as $bundle => $count) {
       $findings[] = ['area' => 'paragraph type', 'item' => $bundle, 'handling' => 'remove', 'replacement' => NULL, 'note' => "$count in database with no config; delete before uninstalling paragraphs"];
     }
@@ -657,6 +947,10 @@ final class Auditor {
       'paragraph_types_live' => count(array_filter($report['paragraphs']['types'] ?? [], static fn ($t) => $t['live'] > 0)),
       'paragraphs_live' => $report['paragraphs']['total_live'] ?? 0,
       'paragraphs_in_database' => $report['paragraphs']['total_in_database'] ?? 0,
+      'component_types' => count($report['components']['types'] ?? []),
+      'component_types_live' => count(array_filter($report['components']['types'] ?? [], static fn ($t) => $t['live'] > 0)),
+      'components_live' => $report['components']['total_live'] ?? 0,
+      'components_in_database' => $report['components']['total_in_database'] ?? 0,
       'theme_templates' => count($report['theme']['templates'] ?? []),
       'config_deleted_on_removal' => count($report['removal']['delete']),
       'handling' => $handling,

@@ -1,5 +1,23 @@
 # Changelog
 
+## exo_alchemist sites can be audited and inventoried
+
+A site built with exo_alchemist — components placed as Layout Builder inline
+blocks — is now read like a paragraphs site. **ExoAlchemistSource** reads each
+overridable node's layout (or its display's default layout, marked `default`)
+as a tree: items named by component id, fields by component field name,
+sequences as nested children, modifiers as `behavior`, the editor's hidden
+fields flagged `hidden`, and where each sits as `placement`. **SourceChain**
+reads every source that applies as one, so the inventory, the converter, the
+verifier and `tree-field` work on either kind of site.
+
+The audit reports exo_alchemist components (live and nested counts, the
+modifiers and hidden fields in use, default-layout hosts), exo_icon packages
+and where their icons are stored, exo_toolbar items and exo_site_settings
+bundles. The catalog knows the exo suite, eight more contrib modules that carry
+over, and the exo_alchemist_smart tokens in metatag defaults. The default theme
+chain now reads from the theme up (it listed a two-level chain out of order).
+
 ## A cut-over environment can be warmed before it is captured
 
 **`cli.mjs warm --target=<name>`** loads every page once, one at a time, and

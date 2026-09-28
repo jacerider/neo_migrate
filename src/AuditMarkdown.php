@@ -26,11 +26,19 @@ final class AuditMarkdown {
     $out[] = '';
     $out[] = '## Summary';
     $out[] = '';
+    $rows = [['Host entities holding a tree', $summary['hosts']]];
+    if (!empty($report['paragraphs'])) {
+      $rows[] = ['Paragraph types (live / total)', $summary['paragraph_types_live'] . ' / ' . $summary['paragraph_types']];
+      $rows[] = ['Paragraphs live on current revisions', $summary['paragraphs_live']];
+      $rows[] = ['Paragraphs in the database', $summary['paragraphs_in_database']];
+    }
+    if (!empty($report['components'])) {
+      $rows[] = ['exo_alchemist component types (live / total)', ($summary['component_types_live'] ?? 0) . ' / ' . ($summary['component_types'] ?? 0)];
+      $rows[] = ['Components live on current revisions (nested included)', $summary['components_live'] ?? 0];
+      $rows[] = ['Component blocks in the database', $summary['components_in_database'] ?? 0];
+    }
     $out[] = $this->table(['Measure', 'Value'], [
-      ['Host entities holding a tree', $summary['hosts']],
-      ['Paragraph types (live / total)', $summary['paragraph_types_live'] . ' / ' . $summary['paragraph_types']],
-      ['Paragraphs live on current revisions', $summary['paragraphs_live']],
-      ['Paragraphs in the database', $summary['paragraphs_in_database']],
+      ...$rows,
       ['Default theme templates', $summary['theme_templates']],
       ['Config deleted when the legacy stack is uninstalled', $summary['config_deleted_on_removal']],
       ...array_map(static fn ($handling, $count) => ["Findings: $handling", $count], array_keys($summary['handling']), $summary['handling']),
@@ -72,6 +80,89 @@ final class AuditMarkdown {
         $out[] = '';
         $out[] = 'Orphan bundles (rows with no paragraph type): ' . implode(', ', array_map(static fn ($b, $c) => "$b ($c)", array_keys($paragraphs['orphans']), $paragraphs['orphans'])) . '.';
       }
+    }
+
+    if (!empty($report['components'])) {
+      $components = $report['components'];
+      $out[] = '';
+      $out[] = '## exo_alchemist components';
+      $out[] = '';
+      $out[] = 'Live counts are what current revisions render: top-level items and items nested in a sequence. Modifiers are the style options set on live items; hidden fields keep a value that does not render.';
+      $out[] = '';
+      $rows = [];
+      foreach ($components['types'] as $id => $type) {
+        $fields = array_map(static function ($name, $field) {
+          $label = "$name (" . $field['type'] . ($field['cardinality'] !== 1 ? ', ' . ($field['cardinality'] < 0 ? '∞' : $field['cardinality']) : '') . ')';
+          return $field['computed'] ? "$label, computed" : $label;
+        }, array_keys($type['fields']), $type['fields']);
+        $modifiers = [];
+        foreach ($type['modifiers'] as $key => $values) {
+          $modifiers[] = $key . ': ' . implode(', ', array_map(static fn ($v, $c) => "$v ×$c", array_keys($values), $values));
+        }
+        $hidden = array_map(static fn ($name, $count) => "$name ×$count", array_keys($type['hidden']), $type['hidden']);
+        $rows[] = [
+          $id . ($type['provider'] ? ' (' . $type['provider'] . ')' : ''),
+          $type['live'] . ($type['nested'] ? ' (' . $type['nested'] . ' nested)' : '') . ($type['on_default_layout'] ? ' (' . $type['on_default_layout'] . ' from a default layout)' : ''),
+          $type['in_database'],
+          implode(', ', $type['host_bundles']),
+          implode('<br>', $fields),
+          implode('<br>', $modifiers),
+          implode(', ', $hidden),
+        ];
+      }
+      $out[] = $this->table(['Component', 'Live', 'In DB', 'Used on', 'Fields', 'Modifiers in use', 'Hidden fields'], $rows);
+      $out[] = '';
+      $out[] = '### Where trees are stored';
+      $out[] = '';
+      $out[] = $this->table(['Host', 'Field', 'Entities', 'On the default layout'], array_map(
+        static fn ($h) => [$h['entity_type'] . '.' . $h['bundle'], $h['field'], $h['entities'], $h['default_layout']],
+        $components['hosts'],
+      ));
+      if ($components['orphans']) {
+        $out[] = '';
+        $out[] = 'Orphan bundles (component blocks with no definition): ' . implode(', ', array_map(static fn ($b, $c) => "$b ($c)", array_keys($components['orphans']), $components['orphans'])) . '.';
+      }
+    }
+
+    if (!empty($report['exo_icons'])) {
+      $icons = $report['exo_icons'];
+      $out[] = '';
+      $out[] = '## Icons (exo_icon)';
+      $out[] = '';
+      $out[] = $this->table(['Package', 'Type', 'Icons', 'Enabled', 'Global'], array_map(
+        static fn ($id, $p) => [$id, $p['type'], $p['icons'], $p['status'] ? 'yes' : 'no', $p['global'] ? 'yes' : 'no'],
+        array_keys($icons['packages']), $icons['packages'],
+      ));
+      $out[] = '';
+      $out[] = 'Icons in live content: ' . (implode(', ', array_map(static fn ($i, $c) => "$i ×$c", array_keys($icons['live']), $icons['live'])) ?: 'none') . '.';
+      $out[] = '';
+      $out[] = 'Menu links with icons: ' . (implode(', ', array_map(static fn ($m) => sprintf('%s "%s" (%s, %s)', $m['menu'], $m['title'], $m['icon'] ?? '-', $m['position'] ?? '-'), $icons['menu_links'])) ?: 'none') . '.';
+      $out[] = '';
+      $out[] = 'In no enabled package: ' . (implode(', ', $icons['dangling']) ?: 'none') . '.';
+      if ($icons['config']) {
+        $out[] = '';
+        $out[] = $this->table(['Config', 'Key', 'Icon'], array_map(static fn ($c) => [$c['config'], $c['key'], $c['value']], $icons['config']));
+      }
+    }
+
+    if (!empty($report['exo_toolbar'])) {
+      $out[] = '';
+      $out[] = '## Toolbar (exo_toolbar → neo_toolbar)';
+      $out[] = '';
+      $out[] = $this->table(['Item', 'Toolbar', 'Region', 'Plugin', 'Title', 'URL', 'Icon', 'Enabled'], array_map(
+        static fn ($i) => [$i['id'], $i['toolbar'], $i['region'], $i['plugin'], $i['title'] ?? '', $i['url'] ?? '', $i['icon'] ?? '', $i['status'] ? 'yes' : 'no'],
+        $report['exo_toolbar']['items'],
+      ));
+    }
+
+    if (!empty($report['exo_site_settings'])) {
+      $out[] = '';
+      $out[] = '## Site settings (exo_site_settings → neo_site_settings)';
+      $out[] = '';
+      $out[] = $this->table(['Bundle', 'Fields', 'Filled'], array_map(
+        static fn ($id, $t) => [$id, implode(', ', array_map(static fn ($n, $type) => "$n ($type)", array_keys($t['fields']), $t['fields'])), implode(', ', $t['filled']) ?: 'none'],
+        array_keys($report['exo_site_settings']), $report['exo_site_settings'],
+      ));
     }
 
     if (!empty($report['icons'])) {

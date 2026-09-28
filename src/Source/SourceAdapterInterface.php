@@ -9,9 +9,10 @@ use Drupal\Core\Entity\ContentEntityInterface;
 /**
  * Reads a legacy content-building system as ordered trees of items.
  *
- * Paragraphs is the first source. Others — exo_alchemist, Layout Builder —
- * implement the same contract so the inventory, the converter and the
- * verification never need to know which system a site was built with.
+ * Paragraphs and exo_alchemist implement it; others (plain Layout Builder)
+ * can follow, so the inventory, the converter and the verification never need
+ * to know which system a site was built with. SourceChain reads every adapter
+ * that applies as one.
  */
 interface SourceAdapterInterface {
 
@@ -35,7 +36,8 @@ interface SourceAdapterInterface {
   /**
    * The ordered tree stored in one host field.
    *
-   * Each item is `{bundle, id, revision, uuid, status, behavior, fields}`.
+   * Each item is `{bundle, id, revision, uuid, status, behavior, fields}`,
+   * plus `placement` where the source has one (a layout section and region).
    * A field that nests further items carries `children` instead of `items`.
    *
    * @return list<array>

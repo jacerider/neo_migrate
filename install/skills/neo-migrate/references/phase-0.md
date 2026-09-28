@@ -15,7 +15,7 @@ Read-only on the site. Produces the evidence every later phase is judged against
 
 4. **URL list**: `ddev drush neo-migrate:urls` writes `migration/urls.json`. Visual URLs get screenshotted; redirects and term pages are checked by status code. Read the list: a published page nobody links to (test pages, "not working" pages) is a question for the person, not something to rebuild silently.
 
-5. **Parity config**: write `migration/parity.yml` from the template in [parity.md](parity.md). Find the legacy theme's section selectors by inspecting a node page: the chrome regions (top bar, header, footer) and the selector matching each top-level paragraph (usually `.node.full > .field.body > *`).
+5. **Parity config**: write `migration/parity.yml` from the template in [parity.md](parity.md). Find the legacy theme's section selectors by inspecting a node page: the chrome regions (top bar, header, footer) and the selector matching each top-level paragraph (usually `.node.full > .field.body > *`) or, on an exo_alchemist site, each top-level component (`.node.full .layout__region > *`). Headers that scripts resize (ux_header, exo_fixed) need a stable element and sometimes a `prepare:` expression; see [parity.md](parity.md).
 
 6. **Baseline**: install the tool once (`npm install` in `web/modules/contrib/neo_migrate/tools/parity`, then `npx playwright install chromium`), then from the site root:
    ```

@@ -10,7 +10,7 @@ use Drupal\neo_migrate\Content\ContentMapping;
 use Drupal\neo_migrate\Content\TreeConverter;
 use Drupal\neo_migrate\Importer\IconFieldImporter;
 use Drupal\neo_migrate\Importer\SiteSettingsImporter;
-use Drupal\neo_migrate\Source\ParagraphsSource;
+use Drupal\neo_migrate\Source\SourceAdapterInterface;
 use Drupal\neo_migrate\Verify\ContentVerifier;
 use Drupal\neo_migrate\Workspace;
 use Drupal\neo_migrate\Writer\ComponentTreeWriter;
@@ -39,8 +39,8 @@ final class NeoMigrateContentCommands extends DrushCommands {
     private readonly EntityTypeManagerInterface $entityTypeManager,
     #[Autowire(service: 'neo_migrate.workspace')]
     private readonly Workspace $workspace,
-    #[Autowire(service: 'neo_migrate.source.paragraphs')]
-    private readonly ParagraphsSource $source,
+    #[Autowire(service: 'neo_migrate.source')]
+    private readonly SourceAdapterInterface $source,
     #[Autowire(service: 'neo_migrate.tree_converter')]
     private readonly TreeConverter $converter,
     #[Autowire(service: 'neo_migrate.tree_writer')]

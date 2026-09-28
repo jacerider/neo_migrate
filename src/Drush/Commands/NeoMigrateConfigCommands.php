@@ -13,7 +13,7 @@ use Drupal\neo_migrate\Importer\SiteSettingsImporter;
 use Drupal\neo_migrate\Importer\ToolbarImporter;
 use Drupal\neo_migrate\Importer\TreeFieldInstaller;
 use Drupal\neo_migrate\PalletGenerator;
-use Drupal\neo_migrate\Source\ParagraphsSource;
+use Drupal\neo_migrate\Source\SourceAdapterInterface;
 use Drush\Attributes as CLI;
 use Drush\Commands\AutowireTrait;
 use Drush\Commands\DrushCommands;
@@ -36,8 +36,8 @@ final class NeoMigrateConfigCommands extends DrushCommands {
     private readonly IconImporter $iconImporter,
     #[Autowire(service: 'neo_migrate.tree_field_installer')]
     private readonly TreeFieldInstaller $treeFieldInstaller,
-    #[Autowire(service: 'neo_migrate.source.paragraphs')]
-    private readonly ParagraphsSource $paragraphs,
+    #[Autowire(service: 'neo_migrate.source')]
+    private readonly SourceAdapterInterface $source,
     #[Autowire(service: 'neo_migrate.site_settings_importer')]
     private readonly SiteSettingsImporter $siteSettingsImporter,
     #[Autowire(service: 'neo_migrate.icon_field_importer')]
@@ -138,16 +138,16 @@ final class NeoMigrateConfigCommands extends DrushCommands {
   /**
    * Adds the component tree field beside the legacy body. Creates config.
    *
-   * Without options it covers every host the paragraphs source finds.
+   * Without options it covers every host the site's sources find.
    */
   #[CLI\Command(name: 'neo-migrate:tree-field', aliases: ['nmtf'])]
   #[CLI\Option(name: 'field', description: 'Machine name of the component tree field.')]
   #[CLI\Option(name: 'dry-run', description: 'Report what would happen without saving.')]
-  #[CLI\Usage(name: 'drush neo-migrate:tree-field', description: 'Add field_full wherever paragraphs are hosted.')]
+  #[CLI\Usage(name: 'drush neo-migrate:tree-field', description: 'Add field_full wherever a legacy tree is hosted.')]
   public function treeField(array $options = ['field' => 'field_full', 'dry-run' => FALSE]): void {
-    $hosts = $this->paragraphs->hosts();
+    $hosts = $this->source->hosts();
     if (!$hosts) {
-      throw new \RuntimeException('The paragraphs source finds no host fields.');
+      throw new \RuntimeException('No source finds host fields on this site.');
     }
     foreach ($hosts as $host) {
       $report = $this->treeFieldInstaller->install($host['entity_type'], $host['bundles'], $options['field'], $host['field'], (bool) $options['dry-run']);
