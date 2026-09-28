@@ -14,6 +14,7 @@ use Drupal\Core\Hook\Attribute\Hook;
 use Drupal\Core\Hook\Order\Order;
 use Drupal\Core\Theme\ThemeManagerInterface;
 use Drupal\neo_migrate\LegacyCatalog;
+use Drupal\neo_migrate\Theme\ThemeFamily;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
@@ -27,6 +28,12 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
  * Legacy theme-layer modules (the catalog's `theme_layer`) restyle common
  * theme hooks in every theme's registry. The Neo themes' registries are
  * rebuilt without them.
+ *
+ * The reverse holds too: some Neo modules act on every theme. neo_tooltip turns
+ * form descriptions into tooltips, and each icon system attaches its global
+ * icon fonts to every page, where the two share class names (IcoMoon's
+ * `icon-<package>-<name>`) and restyle each other's icons. Legacy themes are
+ * kept free of both, and the Neo themes of exo_icon's fonts.
  */
 final class CoexistenceHooks {
 
@@ -66,6 +73,63 @@ final class CoexistenceHooks {
     elseif ($theme === $settings->get('preview.neo.front')) {
       unset($build[$legacy]);
     }
+  }
+
+  /**
+   * Keeps each theme's elements to its own stack.
+   *
+   * Implements hook_element_info_alter(). Element info is built per theme, with
+   * that theme active. In a legacy theme every input opts out of neo_tooltip
+   * (`#tooltip: FALSE`, set by a process callback that runs before
+   * neo_tooltip's), so descriptions stay where the legacy theme put them. In a
+   * Neo theme the page no longer carries exo_icon's global fonts.
+   */
+  #[Hook('element_info_alter')]
+  public function elementInfoAlter(array &$info): void {
+    if (ThemeFamily::isNeo($this->themeManager->getActiveTheme())) {
+      if (isset($info['html']['#attached']['library'])) {
+        $info['html']['#attached']['library'] = array_values(array_filter(
+          $info['html']['#attached']['library'],
+          static fn (string $library): bool => !str_starts_with($library, 'exo_icon/icon.'),
+        ));
+      }
+      return;
+    }
+    if (!$this->moduleHandler->moduleExists('neo_tooltip')) {
+      return;
+    }
+    foreach ($info as &$element) {
+      if (isset($element['#process']) && !empty($element['#input'])) {
+        array_unshift($element['#process'], [self::class, 'withoutTooltip']);
+      }
+    }
+  }
+
+  /**
+   * Opts an element out of neo_tooltip.
+   */
+  public static function withoutTooltip(array $element): array {
+    $element['#tooltip'] = FALSE;
+    return $element;
+  }
+
+  /**
+   * Keeps neo_icon's global icon fonts off legacy pages.
+   *
+   * Implements hook_page_attachments_alter(). Legacy pages render exo_icon's
+   * (or micon's) icons, whose classes the Neo fonts would restyle; any Neo icon
+   * on a legacy page (an editor's local tasks) uses the same names, which the
+   * legacy fonts still draw.
+   */
+  #[Hook('page_attachments_alter')]
+  public function pageAttachmentsAlter(array &$attachments): void {
+    if (empty($attachments['#attached']['library']) || ThemeFamily::isNeo($this->themeManager->getActiveTheme())) {
+      return;
+    }
+    $attachments['#attached']['library'] = array_values(array_filter(
+      $attachments['#attached']['library'],
+      static fn (string $library): bool => !str_starts_with($library, 'neo_icon/library.'),
+    ));
   }
 
   /**

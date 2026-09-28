@@ -124,6 +124,15 @@ services:
       - '@renderer'
       - '@?plugin.manager.neo_component_value'
 
+  # exo_icon and neo_icon both register a Twig icon() function; the one added
+  # last serves every theme. Added after both (lowest priority), this one sends
+  # each theme to its own icon system.
+  neo_migrate.twig.icon_coexistence:
+    class: Drupal\neo_migrate\TwigExtension\IconCoexistence
+    arguments: ['@theme.manager', '@module_handler']
+    tags:
+      - { name: twig.extension, priority: -1000 }
+
   # Above the admin and default negotiators, below the AJAX base page one, so
   # an AJAX request keeps the theme of the page that made it.
   neo_migrate.preview_negotiator:

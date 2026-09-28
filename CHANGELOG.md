@@ -1,5 +1,18 @@
 # Changelog
 
+## Legacy and Neo themes keep to their own icons, tooltips and fonts
+
+While exo and Neo are both installed, each suite reached into the other's
+themes. exo_icon and neo_icon both register a Twig `icon()` function, and
+neo_icon's won everywhere: legacy templates' exo icons rendered nothing.
+**IconCoexistence** registers `icon()` after both and sends each theme to its
+own system. neo_tooltip turned every form description into a tooltip, legacy
+webforms included; inputs built for a legacy theme now opt out. Each icon
+system attached its global fonts to every page, and their shared IcoMoon class
+names (`icon-regular-*`) restyled each other's icons; legacy pages now carry no
+neo_icon global fonts and Neo pages no exo_icon ones. **ThemeFamily** tells a
+Neo theme (neo_base, neo_front, neo_back or one built on them) from a legacy one.
+
 ## exo_toolbar items carry over to neo_toolbar
 
 **`drush neo-migrate:toolbar`** now reads exo_toolbar's items as well as
