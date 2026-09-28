@@ -1,5 +1,23 @@
 # Changelog
 
+## Phase 2 on exo sites: icons, bundle icons, site settings, tree field, metatags
+
+- **`neo-migrate:icons`** imports exo_icon packages too: each package's
+  directory (an unpacked IcoMoon export) is zipped into the neo_icon library it
+  becomes. exo's Font Awesome packages are left out by default — neo_icon's
+  stock libraries hold the same glyphs — and `--packages` picks others.
+- **`neo-migrate:entity-icons`** copies exo_icon's bundle icons (content types,
+  media types, vocabularies), mapped onto neo_icon's stock names.
+- **`neo-migrate:site-settings-types` / `site-settings`** mirror
+  exo_site_settings in neo_site_settings: missing fields are created like exo's
+  (office hours included), `field_twitter` becomes `field_x`, and values are
+  copied field by field on each environment.
+- **`neo-migrate:tree-field`** leaves Layout Builder displays alone (adding a
+  component there places a block in the default layout the legacy theme
+  renders); the coexistence hook renders the tree in the layout's place in the
+  Neo front theme until the cutover.
+- The metatag map covers exo_alchemist's image height and width tokens.
+
 ## Each theme gets its own dialog framework
 
 exo_modal and neo_modal both replace core's dialog libraries, and neo_modal kept

@@ -64,7 +64,7 @@ services:
 
   neo_migrate.icon_importer:
     class: Drupal\neo_migrate\Importer\IconImporter
-    arguments: ['@entity_type.manager', '@module_handler', '@file_system']
+    arguments: ['@entity_type.manager', '@module_handler', '@file_system', '@neo_migrate.catalog']
 
   neo_migrate.tree_field_installer:
     class: Drupal\neo_migrate\Importer\TreeFieldInstaller
@@ -72,7 +72,7 @@ services:
 
   neo_migrate.site_settings_importer:
     class: Drupal\neo_migrate\Importer\SiteSettingsImporter
-    arguments: ['@entity_type.manager', '@entity_display.repository', '@config.factory', '@neo_migrate.catalog']
+    arguments: ['@entity_type.manager', '@entity_display.repository', '@config.factory', '@neo_migrate.catalog', '@module_handler', '@neo_migrate.icon_resolver']
 
   # neo_icon is optional here too: the command says so if it is missing.
   neo_migrate.entity_icon_importer:

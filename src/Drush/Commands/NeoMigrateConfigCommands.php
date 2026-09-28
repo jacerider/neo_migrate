@@ -158,16 +158,18 @@ final class NeoMigrateConfigCommands extends DrushCommands {
   }
 
   /**
-   * Imports micon's packages as unique neo_icon libraries. Creates config.
+   * Imports micon's or exo_icon's packages as unique neo_icon libraries. Creates config.
    */
   #[CLI\Command(name: 'neo-migrate:icons', aliases: ['nmic'])]
-  #[CLI\Option(name: 'global', description: 'Load the libraries on every page. Leave off while the legacy theme still draws micon icons.')]
+  #[CLI\Option(name: 'global', description: 'Load the libraries on every page. Leave off while the legacy theme still draws legacy icons.')]
+  #[CLI\Option(name: 'packages', description: 'exo_icon only: comma-separated packages to import (default: every enabled package that is not one of exo\'s Font Awesome packages).')]
   #[CLI\Option(name: 'dry-run', description: 'Report what would happen without saving.')]
-  #[CLI\Usage(name: 'drush neo-migrate:icons', description: 'Import every micon package.')]
-  public function icons(array $options = ['global' => FALSE, 'dry-run' => FALSE]): void {
-    $report = $this->iconImporter->import((bool) $options['global'], (bool) $options['dry-run']);
+  #[CLI\Usage(name: 'drush neo-migrate:icons', description: 'Import every micon package, or exo\'s own (non-Font Awesome) packages.')]
+  public function icons(array $options = ['global' => FALSE, 'packages' => NULL, 'dry-run' => FALSE]): void {
+    $only = $options['packages'] ? array_values(array_filter(array_map('trim', explode(',', (string) $options['packages'])))) : NULL;
+    $report = $this->iconImporter->import((bool) $options['global'], (bool) $options['dry-run'], $only);
     $this->io()->table(
-      ['micon package', 'neo_icon library', 'Action', 'micon icons', 'Note'],
+      ['Legacy package', 'neo_icon library', 'Action', 'Legacy icons', 'Note'],
       array_map(static fn ($row) => [$row['package'], $row['library'], $row['action'], $row['icons'], $row['note']], $report),
     );
     if ($options['dry-run']) {

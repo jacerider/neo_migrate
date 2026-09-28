@@ -12,7 +12,11 @@ use Drupal\neo_icon\IconEntityTypeManager;
 use Drupal\neo_migrate\IconNameResolver;
 
 /**
- * Moves the icons micon gave content types and vocabularies into neo_icon.
+ * Moves the icons micon or exo_icon gave bundles into neo_icon.
+ *
+ * exo_icon keeps a bundle's icon under the same key neo_icon uses
+ * (`entity:<type>:<id>`), for content types, media types and vocabularies; its
+ * ids (`regular-file`) map onto neo_icon's stock libraries.
  *
  * micon_content_type and micon_vocabulary keep a bundle's icon as a third
  * party setting; neo_icon keeps it as its own (`entity:<type>:<id>`), which
@@ -28,8 +32,11 @@ final class EntityIconImporter {
    * The micon module holding each entity type's icon.
    */
   private const SOURCES = [
-    'node_type' => 'micon_content_type',
-    'taxonomy_vocabulary' => 'micon_vocabulary',
+    ['node_type', 'micon_content_type'],
+    ['taxonomy_vocabulary', 'micon_vocabulary'],
+    ['node_type', 'exo_icon'],
+    ['media_type', 'exo_icon'],
+    ['taxonomy_vocabulary', 'exo_icon'],
   ];
 
   public function __construct(
@@ -51,7 +58,7 @@ final class EntityIconImporter {
       throw new \RuntimeException('neo_icon is not installed.');
     }
     $report = [];
-    foreach (self::SOURCES as $entityTypeId => $module) {
+    foreach (self::SOURCES as [$entityTypeId, $module]) {
       if (!$this->entityTypeManager->hasDefinition($entityTypeId)) {
         continue;
       }
@@ -78,11 +85,12 @@ final class EntityIconImporter {
    * The icon micon gave a bundle, from the bundle or the sync directory.
    */
   private function legacyIcon(ConfigEntityInterface $entity, string $module): string {
+    $key = $module === 'exo_icon' ? 'entity:' . $entity->getEntityTypeId() . ':' . $entity->id() : 'icon';
     if ($this->moduleHandler->moduleExists($module)) {
-      return (string) $entity->getThirdPartySetting($module, 'icon', '');
+      return (string) $entity->getThirdPartySetting($module, $key, '');
     }
     $synced = $this->syncStorage->read($entity->getConfigDependencyName()) ?: [];
-    return (string) ($synced['third_party_settings'][$module]['icon'] ?? '');
+    return (string) ($synced['third_party_settings'][$module][$key] ?? '');
   }
 
 }

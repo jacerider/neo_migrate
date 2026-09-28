@@ -8,6 +8,7 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\File\FileExists;
 use Drupal\Core\File\FileSystemInterface;
+use Drupal\neo_migrate\LegacyCatalog;
 
 /**
  * Brings micon's icon packages into neo_icon, keeping every stored name.
@@ -30,6 +31,13 @@ use Drupal\Core\File\FileSystemInterface;
  * Libraries are not global by default: they load only where a neo icon is
  * rendered, so the legacy theme, still drawing micon's own `fa-*` classes,
  * is untouched until the cutover.
+ *
+ * exo_icon packages come in the same way (`<package>-<name>` ids, IcoMoon
+ * exports), except that exo keeps each one unpacked: its directory is zipped
+ * into the package neo_icon takes. exo's Font Awesome packages (the catalog's
+ * `exo_icon_packages`) are left out by default: neo_icon's stock Regular and
+ * Brands libraries hold the same glyphs under the bare name, which
+ * IconNameResolver maps to.
  */
 final class IconImporter {
 
@@ -37,23 +45,35 @@ final class IconImporter {
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly ModuleHandlerInterface $moduleHandler,
     private readonly FileSystemInterface $fileSystem,
+    private readonly LegacyCatalog $catalog,
   ) {}
 
   /**
-   * Imports every micon package.
+   * Imports every micon package, or the chosen exo_icon packages.
+   *
+   * @param bool $global
+   *   Load the libraries on every page.
+   * @param bool $dryRun
+   *   Report only.
+   * @param list<string>|null $only
+   *   exo_icon packages to import; NULL for every enabled package that is not
+   *   one of exo's Font Awesome packages.
    *
    * @return list<array{package: string, library: string, action: string, icons: int, note: string}>
    *   One row per package.
    */
-  public function import(bool $global = FALSE, bool $dryRun = FALSE): array {
-    if (!$this->moduleHandler->moduleExists('micon') || !$this->moduleHandler->moduleExists('neo_icon')) {
-      throw new \RuntimeException('Both micon and neo_icon must be installed.');
+  public function import(bool $global = FALSE, bool $dryRun = FALSE, ?array $only = NULL): array {
+    if (!$this->moduleHandler->moduleExists('neo_icon')) {
+      throw new \RuntimeException('neo_icon must be installed.');
+    }
+    $packages = $this->packages($only);
+    if ($packages === NULL) {
+      throw new \RuntimeException('Neither micon nor exo_icon is installed.');
     }
     $libraries = $this->entityTypeManager->getStorage('neo_icon_library');
     $report = [];
-    foreach ($this->entityTypeManager->getStorage('micon')->loadMultiple() as $id => $package) {
-      /** @var \Drupal\micon\Entity\Micon $package */
-      $row = ['package' => (string) $id, 'library' => (string) $id, 'action' => '', 'icons' => count($package->getIcons()), 'note' => ''];
+    foreach ($packages as $id => $package) {
+      $row = ['package' => (string) $id, 'library' => (string) $id, 'action' => '', 'icons' => $package['icons'], 'note' => ''];
       /** @var \Drupal\neo_icon\Entity\IconLibrary|null $library */
       $library = $libraries->load($id);
       if ($library && $library->getFile() !== $id . '_zip') {
@@ -67,16 +87,16 @@ final class IconImporter {
       }
 
       $library ??= $libraries->create(['id' => $id]);
-      $library->set('label', (string) $package->label());
-      $library->set('type', $package->type() === 'image' ? 'image' : 'font');
+      $library->set('label', $package['label']);
+      $library->set('type', $package['type'] === 'image' ? 'image' : 'font');
       $library->set('file', $id . '_zip');
       $library->set('global', $global);
       $library->set('unique', TRUE);
-      $library->set('status', (bool) $package->status());
+      $library->set('status', $package['status']);
       $library->set('weight', 20);
       $library->save();
 
-      [$archive, $renamed] = $this->splitGlyphNames((string) $package->getArchive());
+      [$archive, $renamed] = $this->splitGlyphNames(($package['archive'])());
       $this->attachArchive($library, $archive);
       $note = $this->check($library);
       if ($renamed) {
@@ -85,6 +105,73 @@ final class IconImporter {
       $report[] = ['note' => $note] + $row;
     }
     return $report;
+  }
+
+  /**
+   * The legacy icon packages, micon's or exo_icon's.
+   *
+   * @return array<string, array{label: string, type: string, status: bool, icons: int, archive: callable}>|null
+   *   Keyed by package id; NULL when neither module is installed. `archive`
+   *   returns the package as an IcoMoon zip.
+   */
+  private function packages(?array $only): ?array {
+    if ($this->moduleHandler->moduleExists('micon')) {
+      $packages = [];
+      foreach ($this->entityTypeManager->getStorage('micon')->loadMultiple() as $id => $package) {
+        /** @var \Drupal\micon\Entity\Micon $package */
+        $packages[$id] = [
+          'label' => (string) $package->label(),
+          'type' => (string) $package->type(),
+          'status' => (bool) $package->status(),
+          'icons' => count($package->getIcons()),
+          'archive' => static fn (): string => (string) $package->getArchive(),
+        ];
+      }
+      return $packages;
+    }
+    if (!$this->moduleHandler->moduleExists('exo_icon')) {
+      return NULL;
+    }
+    $fontAwesome = $this->catalog->get('exo_icon_packages');
+    $packages = [];
+    foreach ($this->entityTypeManager->getStorage('exo_icon_package')->loadMultiple() as $id => $package) {
+      /** @var \Drupal\exo_icon\Entity\ExoIconPackageInterface $package */
+      if ($only !== NULL ? !in_array($id, $only, TRUE) : (!$package->status() || in_array($id, $fontAwesome, TRUE))) {
+        continue;
+      }
+      $directory = (string) $package->getPath();
+      $packages[$id] = [
+        'label' => (string) $package->label(),
+        'type' => (string) $package->getType(),
+        'status' => (bool) $package->status(),
+        'icons' => count($package->getDefinitions()),
+        'archive' => fn (): string => $this->zipDirectory($directory),
+      ];
+    }
+    return $packages;
+  }
+
+  /**
+   * An unpacked IcoMoon export zipped back up, as neo_icon takes it.
+   */
+  private function zipDirectory(string $directory): string {
+    $root = $this->fileSystem->realpath($directory);
+    if (!$root || !is_file($root . '/selection.json')) {
+      throw new \RuntimeException("No IcoMoon export (selection.json) in $directory.");
+    }
+    $path = $this->fileSystem->realpath($this->fileSystem->tempnam('temporary://', 'neo_migrate_icons'));
+    $zip = new \ZipArchive();
+    $zip->open($path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+    $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS));
+    foreach ($files as $file) {
+      if ($file->isFile()) {
+        $zip->addFile($file->getPathname(), substr($file->getPathname(), strlen($root) + 1));
+      }
+    }
+    $zip->close();
+    $archive = (string) file_get_contents($path);
+    unlink($path);
+    return $archive;
   }
 
   /**

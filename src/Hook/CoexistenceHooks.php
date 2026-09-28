@@ -7,6 +7,7 @@ namespace Drupal\neo_migrate\Hook;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\Extension\ModuleExtensionList;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Extension\ThemeHandlerInterface;
@@ -22,7 +23,8 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
  * Keeps each stack to its own theme while both are installed.
  *
  * Between content conversion and teardown a node carries both the legacy body
- * (paragraphs) and the component tree. The legacy themes render the body and
+ * (paragraphs, or an exo_alchemist Layout Builder layout) and the component
+ * tree. The legacy themes render the body and
  * never the tree; the Neo front theme renders the tree and never the body.
  * Render caching already varies by theme, so each theme caches its own build.
  *
@@ -67,10 +69,24 @@ final class CoexistenceHooks {
     $settings = $this->configFactory->get('neo_migrate.settings');
     $tree = (string) $settings->get('coexistence.tree_field');
     $legacy = (string) $settings->get('coexistence.legacy_field');
-    if ($tree === '' || $legacy === '' || !isset($build[$tree], $build[$legacy])) {
+    if ($tree === '' || $legacy === '') {
       return;
     }
     $theme = $this->themeManager->getActiveTheme()->getName();
+    // A Layout Builder host (exo_alchemist) renders its layout, not its fields:
+    // the tree is not in the build at all. The Neo front theme gets the tree
+    // in the layout's place; the legacy theme keeps the layout.
+    if (isset($build['_layout_builder']) && $entity instanceof FieldableEntityInterface && $entity->hasField($tree)) {
+      if ($theme === $settings->get('preview.neo.front')) {
+        $build[$tree] = $entity->get($tree)->view(['type' => 'neo_component_tree', 'label' => 'hidden']);
+        $build[$tree]['#weight'] = $build['_layout_builder']['#weight'] ?? 0;
+        unset($build['_layout_builder']);
+      }
+      return;
+    }
+    if (!isset($build[$tree], $build[$legacy])) {
+      return;
+    }
     if ($theme === $settings->get('preview.legacy.front')) {
       unset($build[$tree]);
     }

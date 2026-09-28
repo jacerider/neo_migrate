@@ -183,6 +183,8 @@ token_map:
   '[node:exo_alchemist_smart_description:value]': '[neo:description]'
   '[node:exo_alchemist_smart_image:meta:url]': '[neo:image]'
   '[node:exo_alchemist_smart_image:url]': '[neo:image]'
+  '[node:exo_alchemist_smart_image:meta:height]': '[neo:image:height]'
+  '[node:exo_alchemist_smart_image:meta:width]': '[neo:image:width]'
 
 # Escort item plugins and the neo_toolbar item plugin each maps to.
 escort_plugins:
@@ -195,6 +197,12 @@ escort_plugins:
   node_add: create
   node_manage: link
   divider: divider
+
+# exo_site_settings fields whose neo_site_settings twin has another name. Every
+# other field keeps its name; a field neo lacks is created like exo's.
+exo_site_settings:
+  field_map:
+    field_twitter: field_x
 
 # exo_toolbar item plugins and the neo_toolbar item plugin each maps to.
 exo_toolbar_plugins:

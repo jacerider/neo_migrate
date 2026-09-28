@@ -7,6 +7,7 @@ namespace Drupal\neo_migrate\Importer;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityDisplayRepositoryInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\layout_builder\Entity\LayoutEntityDisplayInterface;
 
 /**
  * Adds the component tree field that converted content is written into.
@@ -16,6 +17,12 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  * editor) and rendered by the tree formatter in every view display that shows
  * the legacy body field. It also records both field names for the coexistence
  * hook, so the legacy theme keeps rendering the old body until the cutover.
+ *
+ * A Layout Builder display (an exo_alchemist host) is left as it is: adding a
+ * component to it places a field block in its default layout, which the
+ * legacy theme renders. Until the cutover switches Layout Builder off and
+ * places the field, the coexistence hook renders the tree in place of the
+ * layout, in the Neo front theme only.
  */
 final class TreeFieldInstaller {
 
@@ -69,6 +76,10 @@ final class TreeFieldInstaller {
 
       foreach ($this->displayRepository->getViewModeOptionsByBundle($entityType, $bundle) as $mode => $label) {
         $display = $this->displayRepository->getViewDisplay($entityType, $bundle, $mode);
+        if ($display instanceof LayoutEntityDisplayInterface && $display->isLayoutBuilderEnabled()) {
+          $row['displays'][] = "$mode (Layout Builder: rendered by coexistence until the cutover)";
+          continue;
+        }
         $legacy = $display->getComponent($legacyField);
         if (!$legacy) {
           continue;
