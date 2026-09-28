@@ -96,6 +96,9 @@ modules:
   exo_site_settings: { replacement: neo_site_settings, handling: mechanical, phase: 2 }
   exo_toolbar: { replacement: neo_toolbar, handling: mechanical, phase: 1 }
 
+  # MNA sites (augustash).
+  mna: { replacement: 'front theme', handling: remove, phase: 5, note: 'An exo skin (ExoTheme Mna) and the MNA branding block in the legacy header and footer; the front header and footer render the branding.' }
+
 themes:
   aeon: { replacement: neo_front, handling: judgment, phase: 3, note: 'Sub-themes of aeon are rebuilt as the neo "front" theme.' }
   seven: { replacement: neo_back, handling: mechanical, phase: 5 }
@@ -110,6 +113,7 @@ keep:
   - config_ignore
   - config_readonly
   - config_split
+  - contractor_commerce
   - crop
   - devel
   - disable_user_1_edit
