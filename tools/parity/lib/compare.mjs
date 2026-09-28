@@ -188,9 +188,15 @@ function textDiff(a, b) {
 
 /**
  * Head values that differ, with each site's own host removed first.
+ *
+ * So is an image style's `itok` token: Drupal derives it from the
+ * environment's hash salt, so the same derivative carries a different token on
+ * every environment.
  */
 function metaDiff(a, b, [baseA, baseB]) {
-  const strip = (value, base) => (typeof value === 'string' ? value.split(base.replace(/\/$/, '')).join('') : value ?? null);
+  const strip = (value, base) => (typeof value === 'string'
+    ? value.split(base.replace(/\/$/, '')).join('').replace(/([?&])itok=[\w-]+&?/g, '$1').replace(/[?&]$/, '')
+    : value ?? null);
   const differences = [];
   const check = (name, va, vb) => {
     const na = strip(va, baseA);

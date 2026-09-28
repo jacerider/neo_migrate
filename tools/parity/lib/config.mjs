@@ -25,6 +25,10 @@ const DEFAULTS = {
   ],
   mask: [],
   hide: [],
+  // Expressions run in each page once it has settled at the top, just before
+  // the shot: for scripts that measure the page once, at a moment that
+  // depends on timing, and need to measure again.
+  prepare: [],
   themes: {},
 };
 

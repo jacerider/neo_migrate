@@ -174,6 +174,12 @@ async function capturePage(browser, config, { base, session, hide }, dir, { url,
     // again, now that it takes no room.
     await page.evaluate(() => window.Drupal?.displace?.(true));
     await settle(page);
+    if (config.prepare.length) {
+      for (const expression of config.prepare) {
+        await page.evaluate(expression);
+      }
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 150))));
+    }
 
     const out = join(dir, slug(url.path), String(width));
     mkdirSync(out, { recursive: true });

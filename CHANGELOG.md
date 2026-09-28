@@ -1,5 +1,18 @@
 # Changelog
 
+## Parity holds still for scripts that react to resizing
+
+**`prepare:`** in parity.yml lists expressions run in each page once it has
+settled at the top, just before the shot. The full-page screenshot resizes the
+viewport while it captures, and scripts that react to resizing change the page
+mid-shot: on an exo site, exo_fixed re-measured the header at the transient
+width and pinned it 1px wide in about half the shots, on either side. The skill
+gives the two expressions that re-measure it and detach exo's resize callbacks.
+
+The head comparison also ignores an image style's `itok` token, which Drupal
+derives from the environment's hash salt: the same og:image derivative carries
+a different token on every environment.
+
 ## exo_alchemist sites can be audited and inventoried
 
 A site built with exo_alchemist — components placed as Layout Builder inline

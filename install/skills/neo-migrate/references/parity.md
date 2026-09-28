@@ -31,6 +31,7 @@ concurrency: 3
 thresholds: { pass: 2, fail: 10 }
 mask: ['iframe']                 # differs on every load
 hide: ['[data-drupal-messages]'] # never visible to visitors on load
+prepare: []                      # expressions run in the page before each shot
 themes:
   client:                        # the legacy theme
     detect: '.dialog-off-canvas-main-canvas > .section.page'
@@ -70,6 +71,12 @@ A section that fails in both directions across pages (114px on one, 228px on the
 
 - Judge rendering in Chromium, the browser the tool uses. Firefox showed empty boxes for legacy icon-font glyphs that Chromium and production render correctly.
 - **Warm a freshly cut-over environment before capturing it**: `cli.mjs warm --target=<name>` loads every page once, one at a time, so the server builds its image derivatives; the first request for a page converts every photo it shows, and a large one can outlast the request (a 502, and a capture of a page with grey boxes where the photos belong). It retries what fails.
+- **Scripts that react to resizing** change the page mid-shot: the full-page screenshot resizes the viewport while it captures. On exo sites exo_fixed re-measured the header at the transient width and pinned it 1px wide (logo gone, the page below shifted), in about half the shots on either side. Before each shot, measure once more and detach exo's resize callbacks:
+  ```yaml
+  prepare:
+    - 'window.Drupal?.behaviors?.exoFixed?.resize?.()'
+    - '(() => { const exo = window.Drupal?.Exo; for (const id of Object.keys(exo?.resizeCallbacks ?? {})) exo.removeOnResize(id); })()'
+  ```
 - Local DDEV prints PHP deprecations into the message area; `hide: ['[data-drupal-messages]']` keeps them out of the comparison.
 - A logged-in target on a Neo theme shows neo_toolbar, which displaces the page through Drupal's `--drupal-displace-offset-*` variables. Hide `.neo-toolbar`; the tool re-runs `Drupal.displace()` after hiding, so the page takes back the room.
 - With DDEV's Mutagen sync, files drush writes inside the container reach the host a moment later.
