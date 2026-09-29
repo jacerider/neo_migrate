@@ -1,5 +1,17 @@
 # Changelog
 
+## Phase 3 on exo sites: the converter reads exo_alchemist components
+
+- The mapping takes `components:` (exo_alchemist component ids) as well as
+  `paragraphs:`; hidden fields read as empty.
+- New transforms: `media`, `icon`, `modifier` (with `default`, `map` and
+  `property`), `link` with `as:` for multi-value links; `heading` takes `size`
+  and `fallback: {title: host_label}`, `string` takes `fallback: host_label`.
+- The Neo front preview of a Layout Builder page runs full width with its title
+  for screen readers only, as a real Alchemist page does (neo_front boxes the
+  content region otherwise), and no longer sits in exo's page canvas
+  (`#exo-body`, padded from a displacement exo keeps in localStorage).
+
 ## Phase 2 on exo sites: icons, bundle icons, site settings, tree field, metatags
 
 - **`neo-migrate:icons`** imports exo_icon packages too: each package's

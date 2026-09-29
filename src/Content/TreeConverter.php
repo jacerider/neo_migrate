@@ -61,6 +61,7 @@ final class TreeConverter {
       }
     }
     foreach ($tree as $position => $item) {
+      $item = ValueTransformer::visible($item) + ['@host' => ['label' => (string) $host->label(), 'id' => $host->id(), 'bundle' => $host->bundle()]];
       if (!empty($item['missing'])) {
         $result['problems'][] = sprintf('Item %d points at a missing revision (%s).', $position, $item['target_revision_id'] ?? '?');
         continue;

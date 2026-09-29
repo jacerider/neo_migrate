@@ -32,6 +32,9 @@ use Drupal\Component\Serialization\Yaml;
  *       content: { from: field_text, transform: markup }
  *     ignore: [field_legacy_only]   # filled fields no prop takes
  * @endcode
+ *
+ * On an exo_alchemist site the items are components, keyed by component id
+ * under `components:` instead of `paragraphs:` (the same entries).
  */
 final class ContentMapping {
 
@@ -48,6 +51,7 @@ final class ContentMapping {
       throw new \RuntimeException("No mapping file at $path.");
     }
     $data = Yaml::decode((string) file_get_contents($path)) ?? [];
+    $data['paragraphs'] ??= $data['components'] ?? NULL;
     foreach (['source', 'hosts', 'paragraphs'] as $key) {
       if (empty($data[$key])) {
         throw new \RuntimeException("The mapping file has no \"$key\".");
@@ -60,7 +64,7 @@ final class ContentMapping {
     }
     foreach ($data['paragraphs'] as $bundle => $spec) {
       if (empty($spec['component']) && empty($spec['skip'])) {
-        throw new \RuntimeException("Paragraph type \"$bundle\" names no component (or skip: true).");
+        throw new \RuntimeException("Legacy item type \"$bundle\" names no component (or skip: true).");
       }
     }
     return new self($data, $path);

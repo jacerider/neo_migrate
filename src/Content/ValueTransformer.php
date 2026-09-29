@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\neo_migrate\Content;
 
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\neo_migrate\IconNameResolver;
 
 /**
  * Turns one legacy field value into one prop value.
@@ -23,7 +24,8 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  *   entity already holding the same file with the same alt text is reused,
  *   so a file used twice becomes one library item. With `as: <key>`, every
  *   value of the field, as an array prop's entries `{<key>: <media>}`.
- * - `link`: a link field's first value: uri, title and options.
+ * - `link`: a link field's first value: uri, title and options. With
+ *   `as: <key>`, every value as an array prop's entries `{<key>: <link>}`.
  * - `wrap`: a plain value as rich text inside one tag: `{transform: wrap,
  *   from: field_title, tag: h2}` gives `<h2>…</h2>` in the mapping's format.
  * - `target`: an entity reference's target id, as a component filter value
@@ -34,7 +36,10 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  *   0–100 rating into 0–5 stars; `{key: lat, precision: 6}` keeps a
  *   coordinate.
  * - `heading`: a heading built from several fields, named per part:
- *   `{transform: heading, supertitle: field_a, title: field_b}`.
+ *   `{transform: heading, supertitle: field_a, title: field_b}`. `size` sets
+ *   its title grade (`sm`, `md`, …), and `fallback: {title: host_label}`
+ *   fills an empty part from the host's title, as exo_alchemist's page
+ *   title fields did.
  * - `each`: nested items (a paragraphs field) as an array prop, one entry
  *   per published item, each built from its own `props:` mapping:
  *   `{from: field_items, transform: each, bundle: item, props: {…}}`.
@@ -42,6 +47,24 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  *   that stood alone where the component expects a list.
  *   The nested items obey the same rule as their parent: a filled field no
  *   prop takes is an error unless listed under `ignore:`.
+ * - `media`: a media reference (exo_alchemist's image, video and document
+ *   fields), as it is. With `as: <key>`, every value as an array prop's
+ *   entries `{<key>: <media>}`.
+ * - `icon`: an icon id, mapped onto neo_icon's names by IconNameResolver
+ *   (exo's `regular-cog` is `cog`; ids of imported libraries stay).
+ * - `modifier`: one of the item's style options (exo_alchemist modifiers),
+ *   by dotted `key` (`_global.position`), with the value the component
+ *   definition falls back to when none is stored as `default`, optionally
+ *   translated through `map`: `{transform: modifier, key: _global.color_bg,
+ *   default: white, map: {white: default, primary: primary}}`. The value is
+ *   stored as the field item's `value`, or as `property` (a scheme prop's
+ *   `target_id`).
+ * `string` also takes `fallback: host_label`, for a field the legacy system
+ * filled from the host's title when empty (exo_alchemist's page titles).
+ *
+ * A field the editor hid (exo_alchemist) reads as empty everywhere: visible()
+ * clears it before any transform sees it, so a hidden value is neither
+ * converted nor reported as unmapped.
  */
 final class ValueTransformer {
 
@@ -53,7 +76,27 @@ final class ValueTransformer {
   public function __construct(
     private readonly MarkupRewriter $markup,
     private readonly EntityTypeManagerInterface $entityTypeManager,
+    private readonly ?IconNameResolver $icons = NULL,
   ) {}
+
+  /**
+   * An item with every field its editor hid emptied, nested items included.
+   */
+  public static function visible(array $item): array {
+    foreach ($item['fields'] ?? [] as $name => $field) {
+      if (!empty($field['hidden'])) {
+        $item['fields'][$name]['items'] = [];
+        if (isset($field['children'])) {
+          $item['fields'][$name]['children'] = [];
+        }
+        continue;
+      }
+      if (isset($field['children'])) {
+        $item['fields'][$name]['children'] = array_map([self::class, 'visible'], $field['children']);
+      }
+    }
+    return $item;
+  }
 
   /**
    * The prop value for one mapping entry and one legacy item.
@@ -76,6 +119,9 @@ final class ValueTransformer {
     if (($spec['transform'] ?? NULL) === 'each' && ($spec['from'] ?? NULL) === '@self') {
       return $this->each(['bundle' => $item['bundle']] + $spec, [$item], $mapping);
     }
+    if (($spec['transform'] ?? NULL) === 'modifier') {
+      return $this->modifier($spec, $item);
+    }
     $field = $item['fields'][$spec['from'] ?? ''] ?? NULL;
     if ($field === NULL) {
       throw new \RuntimeException(sprintf('%s has no field "%s".', $item['bundle'], $spec['from'] ?? ''));
@@ -86,7 +132,11 @@ final class ValueTransformer {
     $first = $field['items'][0] ?? NULL;
     return match ($spec['transform'] ?? 'string') {
       'markup' => $this->markup($first, $mapping),
-      'string' => $first === NULL || trim((string) ($first['value'] ?? '')) === '' ? NULL : ['value' => trim((string) $first['value'])],
+      'string' => $this->string($first, $spec, $item),
+      'media' => isset($spec['as'])
+        ? (array_values(array_filter(array_map(static fn ($value) => empty($value['target_id']) ? NULL : [$spec['as'] => ['target_id' => (string) $value['target_id']]], $field['items'] ?? []))) ?: NULL)
+        : (empty($first['target_id']) ? NULL : ['target_id' => (string) $first['target_id']]),
+      'icon' => trim((string) ($first['value'] ?? '')) === '' ? NULL : ['value' => $this->icons?->resolve(trim((string) $first['value'])) ?? trim((string) $first['value'])],
       'flag' => ['value' => isset($spec['when']) ? (string) ($first['value'] ?? '') === (string) $spec['when'] : !empty($first['value'])],
       'image_media' => isset($spec['as'])
         ? (array_values(array_filter(array_map(fn ($value) => ($media = $this->imageMedia($value, $mapping)) ? [$spec['as'] => $media] : NULL, $field['items'] ?? []))) ?: NULL)
@@ -101,13 +151,46 @@ final class ValueTransformer {
           ? (int) round((float) $first[$spec['key'] ?? 'value'] / (float) ($spec['divide'] ?? 1))
           : round((float) $first[$spec['key'] ?? 'value'] / (float) ($spec['divide'] ?? 1), (int) $spec['precision']),
       ],
-      'link' => empty($first['uri']) ? NULL : [
-        'uri' => $first['uri'],
-        'title' => (string) ($first['title'] ?? ''),
-        'options' => is_array($first['options'] ?? NULL) ? $first['options'] : [],
-      ],
+      'link' => isset($spec['as'])
+        ? (array_values(array_filter(array_map(static fn ($value) => ($link = self::link($value)) ? [$spec['as'] => $link] : NULL, $field['items'] ?? []))) ?: NULL)
+        : self::link($first),
       default => throw new \RuntimeException(sprintf('Unknown transform "%s".', $spec['transform'])),
     };
+  }
+
+  /**
+   * A plain value, or the host's title where the legacy system fell back to it.
+   */
+  private function string(?array $first, array $spec, array $item): ?array {
+    $value = trim((string) ($first['value'] ?? ''));
+    if ($value === '' && ($spec['fallback'] ?? NULL) === 'host_label') {
+      $value = trim((string) ($item['@host']['label'] ?? ''));
+    }
+    return $value === '' ? NULL : ['value' => $value];
+  }
+
+  /**
+   * One of the item's style options, or the definition's fallback.
+   */
+  private function modifier(array $spec, array $item): ?array {
+    $value = $item['behavior']['modifiers'] ?? [];
+    foreach (explode('.', (string) ($spec['key'] ?? '')) as $part) {
+      $value = is_array($value) && array_key_exists($part, $value) ? $value[$part] : NULL;
+    }
+    if ($value === NULL || $value === '') {
+      $value = $spec['default'] ?? NULL;
+    }
+    if ($value === NULL || $value === '') {
+      return NULL;
+    }
+    $value = (string) $value;
+    if (isset($spec['map'])) {
+      if (!array_key_exists($value, $spec['map'])) {
+        throw new \RuntimeException(sprintf('%s %d: modifier %s is "%s", which the mapping does not map.', $item['bundle'], $item['id'], $spec['key'] ?? '', $value));
+      }
+      $value = $spec['map'][$value];
+    }
+    return $value === NULL ? NULL : [$spec['property'] ?? 'value' => $value];
   }
 
   /**
@@ -180,8 +263,28 @@ final class ValueTransformer {
         throw new \RuntimeException(sprintf('%s has no field "%s".', $item['bundle'], $field));
       }
       $value[$part] = ['value' => $field ? trim((string) ($item['fields'][$field]['items'][0]['value'] ?? '')) : ''];
+      if ($value[$part]['value'] === '' && ($spec['fallback'][$part] ?? NULL) === 'host_label') {
+        $value[$part]['value'] = trim((string) ($item['@host']['label'] ?? ''));
+      }
     }
-    return implode('', array_column($value, 'value')) === '' ? NULL : $value;
+    if (implode('', array_column($value, 'value')) === '') {
+      return NULL;
+    }
+    if (isset($spec['size'])) {
+      $value['size'] = ['value' => (string) $spec['size']];
+    }
+    return $value;
+  }
+
+  /**
+   * A link field value: uri, title and options; NULL without a uri.
+   */
+  private static function link(?array $value): ?array {
+    return empty($value['uri']) ? NULL : [
+      'uri' => $value['uri'],
+      'title' => (string) ($value['title'] ?? ''),
+      'options' => is_array($value['options'] ?? NULL) ? $value['options'] : [],
+    ];
   }
 
   /**
