@@ -66,12 +66,18 @@ try {
   }
   if (command === 'warm') {
     if (!values.target) throw new Error('warm needs --target.');
-    const { pages, passes } = await warm(config, {
+    const { pages, passes, images } = await warm(config, {
       target: values.target,
       only: values.only?.split(',').map((p) => p.trim()),
       widths: values.widths?.split(',').map(Number),
     });
     console.log(`\nWarmed ${values.target} in ${passes} pass(es)${pages.length ? `; ${pages.length} page view(s) still failing` : '; every page view answered, with its images'}.`);
+    if (images.length) {
+      // A derivative the web cannot convert (a very large photo to AVIF on
+      // Pantheon) is written from the command line instead.
+      const paths = images.map((url) => `'${new URL(url).pathname}${new URL(url).search}'`);
+      console.log(`Write the ${images.length} derivative(s) still failing from the command line, then warm again:\n  drush neo-migrate:derivatives ${paths.join(' ')}`);
+    }
     process.exit(pages.length ? 2 : 0);
   }
   if (command === 'compare') {

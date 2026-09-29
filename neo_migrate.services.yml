@@ -112,6 +112,10 @@ services:
 
   # neo_alchemist's value plugin manager tells a provider-filled prop from an
   # unset one; optional like neo_icon above.
+  neo_migrate.derivative_writer:
+    class: Drupal\neo_migrate\Image\DerivativeWriter
+    arguments: ['@entity_type.manager']
+
   neo_migrate.content_verifier:
     class: Drupal\neo_migrate\Verify\ContentVerifier
     arguments:

@@ -81,8 +81,9 @@ export async function capture(config, { target: name, label, only, widths }) {
  * timed-out conversion usually finishes in the background and the next
  * request finds it.
  *
- * @return {Promise<{pages: Array, passes: number}>}
- *   The pages that still failed, and how many passes it took.
+ * @return {Promise<{pages: Array, passes: number, images: Array<string>}>}
+ *   The pages that still failed, how many passes it took, and the image style
+ *   derivatives they still could not load.
  */
 export async function warm(config, { target: name, only, widths, passes = 3 }) {
   const target = config.targets[name];
@@ -99,6 +100,8 @@ export async function warm(config, { target: name, only, widths, passes = 3 }) {
     }
   }
   let pass = 0;
+  // Image style derivatives the last pass still could not load.
+  let images = [];
   while (jobs.length && pass < passes) {
     pass++;
     const failed = [];
@@ -107,7 +110,15 @@ export async function warm(config, { target: name, only, widths, passes = 3 }) {
       const page = await context.newPage();
       const broken = [];
       page.on('response', (response) => {
-        if (response.status() >= 400 && /\.(avif|webp|png|jpe?g|gif|svg)/i.test(response.url())) {
+        if (!/\.(avif|webp|png|jpe?g|gif|svg)/i.test(response.url())) {
+          return;
+        }
+        if (response.status() >= 400) {
+          broken.push(`${response.status()} ${response.url()}`);
+        }
+        // While another request holds a derivative's lock, Drupal answers
+        // "Image generation in progress" as a page, not an image.
+        else if (response.status() < 300 && /^text\/html/.test(response.headers()['content-type'] ?? '')) {
           broken.push(`${response.status()} ${response.url()}`);
         }
       });
@@ -133,12 +144,13 @@ export async function warm(config, { target: name, only, widths, passes = 3 }) {
       }
     }
     jobs = failed.map(({ url, width }) => ({ url, width }));
+    images = [...new Set(failed.flatMap((job) => job.broken).map((line) => line.match(/^\d+ (\S+\/styles\/\S+)$/)?.[1]).filter(Boolean))];
     if (jobs.length && pass < passes) {
       process.stdout.write(`${jobs.length} page view(s) to retry.\n`);
     }
   }
   await browser.close();
-  return { pages: jobs, passes: pass };
+  return { pages: jobs, passes: pass, images };
 }
 
 /**

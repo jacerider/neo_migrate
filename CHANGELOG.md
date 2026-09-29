@@ -1,5 +1,13 @@
 # Changelog
 
+## neo-migrate:derivatives writes image derivatives from the command line
+
+- `drush neo-migrate:derivatives <url>...` writes the image style derivatives a page references
+  (neo_image's AVIF styles and ordinary image styles), for the ones a web request cannot convert:
+  on Pantheon the request converting a very large photo to AVIF can die part way.
+- `cli.mjs warm` counts an image answered as a page ("Image generation in progress") as failed,
+  and ends by printing the `neo-migrate:derivatives` command for the derivatives still failing.
+
 ## neo-migrate:verify reads exo sites
 
 - Items are read as the converter reads them: hidden fields empty, the host's

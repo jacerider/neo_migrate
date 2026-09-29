@@ -8,6 +8,7 @@ use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\neo_migrate\Content\ContentMapping;
 use Drupal\neo_migrate\Content\TreeConverter;
+use Drupal\neo_migrate\Image\DerivativeWriter;
 use Drupal\neo_migrate\Importer\IconFieldImporter;
 use Drupal\neo_migrate\Importer\SiteSettingsImporter;
 use Drupal\neo_migrate\Source\SourceAdapterInterface;
@@ -49,6 +50,8 @@ final class NeoMigrateContentCommands extends DrushCommands {
     private readonly Connection $database,
     #[Autowire(service: 'neo_migrate.content_verifier')]
     private readonly ContentVerifier $verifier,
+    #[Autowire(service: 'neo_migrate.derivative_writer')]
+    private readonly DerivativeWriter $derivatives,
   ) {
     parent::__construct();
   }
@@ -213,6 +216,36 @@ final class NeoMigrateContentCommands extends DrushCommands {
       return self::EXIT_FAILURE;
     }
     $this->io()->success(sprintf('%d hosts verified%s.', count($results), $warnings ? ", with $warnings warnings to review" : ''));
+    return self::EXIT_SUCCESS;
+  }
+
+  /**
+   * Writes image style derivatives from the command line.
+   *
+   * For the derivatives a web request cannot convert: on Pantheon the request
+   * converting a very large photo to AVIF can die part way, while the command
+   * line converts it in seconds. `cli.mjs warm` lists the ones still failing.
+   * Safe to repeat: a derivative on disk is left alone.
+   */
+  #[CLI\Command(name: 'neo-migrate:derivatives', aliases: ['nmd'])]
+  #[CLI\Argument(name: 'urls', description: 'Derivative URLs or paths, as the pages reference them.')]
+  #[CLI\Usage(name: "drush neo-migrate:derivatives '/sites/default/files/styles/neo-s--w-860/public/2024-11/photo.jpg.avif?itok=abc'", description: 'Write one AVIF derivative.')]
+  public function derivatives(array $urls): int {
+    $rows = [];
+    $failed = 0;
+    foreach ($urls as $url) {
+      $result = $this->derivatives->write($url);
+      if (!in_array($result['result'], ['written', 'present'], TRUE)) {
+        $failed++;
+      }
+      $rows[] = [$result['derivative'] ?? $url, $result['result']];
+    }
+    $this->io()->table(['Derivative', 'Result'], $rows);
+    if ($failed) {
+      $this->io()->error(sprintf('%d of %d not written.', $failed, count($urls)));
+      return self::EXIT_FAILURE;
+    }
+    $this->io()->success(sprintf('%d derivatives on disk.', count($urls)));
     return self::EXIT_SUCCESS;
   }
 
