@@ -1,5 +1,19 @@
 # Changelog
 
+## neo-migrate:verify reads exo sites
+
+- Items are read as the converter reads them: hidden fields empty, the host's
+  title for page-title fallbacks.
+- New checks: `media` (the same media entity, its file on disk), `icon`,
+  `modifier` (the stored value against the style option, default and map),
+  `link` with `as:`, heading `size` and `fallback`, `string` fallback.
+- A fixed value on a style prop is compared as stored, not as its classes; an
+  `internal:` link as the address it renders.
+- Style options no `modifier` reads are a warning; list deliberate omissions
+  under the entry's `ignore` (`_global.overlay`).
+- A filter's entity type falls back to the legacy field's type (exo's webform
+  field).
+
 ## Phase 3 on exo sites: the converter reads exo_alchemist components
 
 - The mapping takes `components:` (exo_alchemist component ids) as well as

@@ -123,6 +123,7 @@ services:
       - '@keyvalue'
       - '@renderer'
       - '@?plugin.manager.neo_component_value'
+      - '@neo_migrate.icon_resolver'
 
   # exo_icon and neo_icon both register a Twig icon() function; the one added
   # last serves every theme. Added after both (lowest priority), this one sends

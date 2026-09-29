@@ -21,9 +21,8 @@ needs at runtime lives here.
 ## Status
 
 Phases 0 (measuring the legacy site), 1 (installing Neo beside it), 2
-(mechanical conversions) and 3 (components and the content converter) are built
-for both stacks; phase 4 (converting and verifying all content) for paragraphs
-sites, with `neo-migrate:verify` still to learn the exo transforms. Later phases
+(mechanical conversions), 3 (components and the content converter) and 4
+(converting and verifying all content) are built for both stacks. Later phases
 are built as the migrations reach them; the skill lists which exist.
 
 ## Coexistence
@@ -75,7 +74,7 @@ These commands change content (run them on every environment, after its config i
 | --- | --- |
 | `drush neo-migrate:site-settings [--dry-run]` | Copies this environment's legacy site settings (site_settings or exo_site_settings) into neo_site_settings. Run again at the cutover to pick up edits made in between. |
 | `drush neo-migrate:content [--id=1,2] [--skip-unmapped] [--overwrite] [--dry-run]` | Converts each host's legacy tree into its component tree field, following `migration/neo_migrate.yml` (paragraph types under `paragraphs:`, exo_alchemist components under `components:`). Keeps changed times and aliases; refuses a tree edited since its last conversion unless `--overwrite`. |
-| `drush neo-migrate:verify` | Checks every converted host against its legacy tree and the inventory (paragraphs sites; exo transforms to come). |
+| `drush neo-migrate:verify` | Checks every converted host against its legacy tree and the inventory. |
 | `drush neo-migrate:icon-field-values <type>.<field> --to=<name> [--dry-run]` | Copies a micon field's values into its twin, keeping each entity's changed time and alias. |
 
 What counts as legacy, and what each piece becomes, is data:

@@ -15,7 +15,9 @@ Every host converts with the strict mapping from phase 3; this phase proves the 
 - **Against the component**: a content prop nothing fills — not the mapping, not the stored tree, not a value provider — shows the component's example text. That is an error.
 - **The conversion record**: the legacy tree changed since its conversion is an error (run `neo-migrate:content` again); the tree edited since is a warning.
 
-Before trusting a green run, break it on purpose: in a transaction, edit a converted tree (a wrong title, a removed prop, two components swapped, a hidden component, a webform that does not exist, a changed alias, a changed media alt text) and check each is reported, then roll back. On the pilot every mutation was caught.
+On an exo site verify reads each item as the converter does (hidden fields empty, the host's title where a page-title field is empty) and checks style options through the stored value: a `modifier` prop against the item's option, its default and map; a fixed style value (`gap: keep`) as stored, not as its classes. A style option the mapping reads nowhere is a warning; list deliberate omissions under the entry's `ignore` by key (`_global.overlay`), with the reason in a comment.
+
+Before trusting a green run, break it on purpose: in a transaction, edit a converted tree (a wrong title, a removed prop, two components swapped, a hidden component, a webform that does not exist, a changed alias, a changed media alt text; on exo sites also another scheme, media, icon and link) and check each is reported, then roll back. Change the alias on the path alias itself: saving the host moves its changed time, and verify then reports the new URL as an editor's change (a warning). On both sites every mutation was caught.
 
 ## 3. Visible text
 

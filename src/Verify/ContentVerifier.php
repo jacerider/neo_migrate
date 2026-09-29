@@ -18,6 +18,7 @@ use Drupal\neo_migrate\Content\MarkupRewriter;
 use Drupal\neo_migrate\Content\TreeConverter;
 use Drupal\neo_migrate\Content\ValueTransformer;
 use Drupal\neo_migrate\FieldNormalizer;
+use Drupal\neo_migrate\IconNameResolver;
 use Drupal\neo_migrate\Source\SourceAdapterInterface;
 use Drupal\path_alias\AliasManagerInterface;
 
@@ -60,6 +61,7 @@ final class ContentVerifier {
     private readonly KeyValueFactoryInterface $keyValue,
     private readonly RendererInterface $renderer,
     private readonly ?PluginManagerInterface $valueManager = NULL,
+    private readonly ?IconNameResolver $icons = NULL,
   ) {}
 
   /**
@@ -176,7 +178,15 @@ final class ContentVerifier {
       if (!empty($entry['skip'])) {
         continue;
       }
-      if (!empty($item['behavior'])) {
+      // An exo_alchemist item's hidden fields render nothing, and its page
+      // title falls back to the host's: read it as the converter does.
+      $item = ValueTransformer::visible($item) + ['@host' => ['label' => (string) $entity->label()]];
+      if (isset($item['behavior']['modifiers']) && is_array($item['behavior']['modifiers'])) {
+        if ($unmapped = self::unmappedModifiers($entry, $item['behavior']['modifiers'])) {
+          $warning("$label: style options not carried over (" . implode(', ', $unmapped) . ').');
+        }
+      }
+      elseif (!empty($item['behavior'])) {
         $warning("$label: its behavior settings are not carried over (" . implode(', ', array_keys($item['behavior'])) . ').');
       }
       $expected[$item['uuid']] = ['label' => "$label → {$entry['component']}", 'entry' => $entry, 'item' => $item, 'status' => (bool) $item['status']];
@@ -237,7 +247,7 @@ final class ContentVerifier {
         $specs = ($want['entry']['props'] ?? []) + $mapping->bundleProps($entity->bundle());
         if ($want['item'] !== NULL) {
           foreach ($want['entry']['props'] ?? [] as $name => $spec) {
-            foreach ($this->checkProp($name, $spec, $want['item'], $values[$name] ?? NULL, $mapping) as $problem) {
+            foreach ($this->checkProp($name, $spec, $want['item'], $values[$name] ?? NULL, $mapping, $raw['props'][$uuid]['props'][$name] ?? NULL) as $problem) {
               $error("$label: $problem");
             }
           }
@@ -323,22 +333,41 @@ final class ContentVerifier {
    * @return list<string>
    *   Problems, empty when the prop holds what the legacy item did.
    */
-  private function checkProp(string $name, array $spec, array $item, mixed $got, ContentMapping $mapping): array {
+  private function checkProp(string $name, array $spec, array $item, mixed $got, ContentMapping $mapping, ?array $stored = NULL): array {
     if (array_key_exists('value', $spec)) {
       $want = $spec['value'];
-      return is_scalar($want) && self::text($got) !== (string) $want ? [sprintf('prop "%s" is %s, not the fixed %s.', $name, self::show($got), $want)] : [];
+      if (!is_scalar($want)) {
+        return [];
+      }
+      // A style prop resolves to its classes; compare what the tree stores.
+      $read = is_scalar($got) ? (string) $got : self::storedValue($stored);
+      return $read !== (string) $want ? [sprintf('prop "%s" is %s, not the fixed %s.', $name, self::show($read), $want)] : [];
     }
     $transform = $spec['transform'] ?? 'string';
+    if ($transform === 'modifier') {
+      $want = self::modifier($spec, $item);
+      $read = self::storedValue($stored, $spec['property'] ?? 'value');
+      if ($want === NULL) {
+        return $read === '' ? [] : [sprintf('prop "%s" is %s, but the legacy item has no %s.', $name, self::show($read), $spec['key'] ?? '?')];
+      }
+      return $read === $want ? [] : [sprintf('prop "%s" is %s; the legacy %s gives %s.', $name, self::show($read), $spec['key'] ?? '?', self::show($want))];
+    }
     if ($transform === 'heading') {
       $problems = [];
       $empty = TRUE;
       foreach (ValueTransformer::HEADING_PARTS as $part) {
         $want = isset($spec[$part]) ? trim((string) ($item['fields'][$spec[$part]]['items'][0]['value'] ?? '')) : '';
+        if ($want === '' && ($spec['fallback'][$part] ?? NULL) === 'host_label') {
+          $want = trim((string) ($item['@host']['label'] ?? ''));
+        }
         $empty = $empty && $want === '';
         $read = is_array($got) ? MarkupRewriter::text((string) ($got[$part] ?? '')) : '';
         if ($read !== MarkupRewriter::text($want)) {
           $problems[] = sprintf('prop "%s" %s reads %s; the legacy item has %s.', $name, $part, self::show($read), self::show($want));
         }
+      }
+      if (!$empty && isset($spec['size']) && !str_contains(self::text($got['size'] ?? ''), 'title-' . $spec['size'])) {
+        $problems[] = sprintf('prop "%s" is not size %s.', $name, $spec['size']);
       }
       return $empty ? $this->hidden($name, $got) : $problems;
     }
@@ -355,6 +384,9 @@ final class ContentVerifier {
       case 'string':
       case 'wrap':
         $want = (string) ($first['value'] ?? '');
+        if (trim($want) === '' && $transform === 'string' && ($spec['fallback'] ?? NULL) === 'host_label') {
+          $want = (string) ($item['@host']['label'] ?? '');
+        }
         if (trim($want) === '') {
           return $this->hidden($name, $got);
         }
@@ -379,6 +411,21 @@ final class ContentVerifier {
         return is_numeric($got) && abs((float) $got - $want) < 1e-9 ? [] : [sprintf('prop "%s" is %s; the legacy item gives %s.', $name, self::show($got), $want)];
 
       case 'link':
+        if (isset($spec['as'])) {
+          $want = array_values(array_filter($field['items'] ?? [], static fn ($value) => !empty($value['uri'])));
+          if (!$want) {
+            return $this->hidden($name, $got);
+          }
+          $got = is_array($got) ? array_values($got) : [];
+          if (count($got) !== count($want)) {
+            return [sprintf('prop "%s" holds %d links; the legacy item has %d.', $name, count($got), count($want))];
+          }
+          $problems = [];
+          foreach ($want as $delta => $value) {
+            $problems = array_merge($problems, $this->checkProp("$name $delta", ['from' => '@link', 'transform' => 'link'], ['fields' => ['@link' => ['items' => [$value]]]] + $item, $got[$delta][$spec['as']] ?? NULL, $mapping));
+          }
+          return $problems;
+        }
         if (empty($first['uri'])) {
           return $this->hidden($name, $got);
         }
@@ -396,7 +443,17 @@ final class ContentVerifier {
         catch (\InvalidArgumentException) {
           $want = $first['uri'];
         }
-        if ((string) $got['uri'] !== (string) $want) {
+        // The link shape leaves an internal: or route: uri as stored; the
+        // template resolves it (neo_uri), so compare the resolved address.
+        $read = (string) $got['uri'];
+        if (preg_match('/^(internal|entity|route):/', $read)) {
+          try {
+            $read = Url::fromUri($read)->toString();
+          }
+          catch (\InvalidArgumentException) {
+          }
+        }
+        if ($read !== (string) $want) {
           $problems[] = sprintf('prop "%s" links to %s; the legacy item links to %s.', $name, self::show($got['uri']), self::show($want));
         }
         return $problems;
@@ -418,6 +475,32 @@ final class ContentVerifier {
           return $problems;
         }
         return empty($first['target_id']) ? $this->hidden($name, $got) : $this->checkImage($name, $first, $got, $mapping);
+
+      case 'media':
+        if (isset($spec['as'])) {
+          $want = array_values(array_filter($field['items'] ?? [], static fn ($value) => !empty($value['target_id'])));
+          if (!$want) {
+            return $this->hidden($name, $got);
+          }
+          $got = is_array($got) ? array_values($got) : [];
+          if (count($got) !== count($want)) {
+            return [sprintf('prop "%s" holds %d media; the legacy item has %d.', $name, count($got), count($want))];
+          }
+          $problems = [];
+          foreach ($want as $delta => $value) {
+            $problems = array_merge($problems, $this->checkMedia("$name $delta", $value, $got[$delta][$spec['as']] ?? NULL));
+          }
+          return $problems;
+        }
+        return empty($first['target_id']) ? $this->hidden($name, $got) : $this->checkMedia($name, $first, $got);
+
+      case 'icon':
+        $want = trim((string) ($first['value'] ?? ''));
+        if ($want === '') {
+          return $this->hidden($name, $got);
+        }
+        $want = $this->icons?->resolve($want) ?? $want;
+        return self::text($got) === $want ? [] : [sprintf('prop "%s" is icon %s; the legacy item has %s.', $name, self::show($got), self::show($want))];
 
       default:
         return [sprintf('prop "%s": verify does not know the transform "%s".', $name, $transform)];
@@ -492,6 +575,28 @@ final class ContentVerifier {
   }
 
   /**
+   * A media prop: the same media entity the legacy item referenced.
+   */
+  private function checkMedia(string $name, array $legacy, mixed $got): array {
+    $mid = is_array($got) ? ($got['target_id'] ?? $got['entity_id'] ?? NULL) : NULL;
+    if (!$mid) {
+      return [sprintf('prop "%s" has no media; the legacy item has media %s.', $name, $legacy['target_id'])];
+    }
+    if ((string) $mid !== (string) $legacy['target_id']) {
+      return [sprintf('prop "%s" shows media %s; the legacy item has media %s.', $name, $mid, $legacy['target_id'])];
+    }
+    $media = $this->entityTypeManager->getStorage('media')->load($mid);
+    if (!$media) {
+      return [sprintf('prop "%s" points at media %s, which does not exist.', $name, $mid)];
+    }
+    $file = $media->get($media->getSource()->getConfiguration()['source_field'])->entity;
+    if ($file && !file_exists($file->getFileUri())) {
+      return [sprintf('prop "%s": %s is missing on disk.', $name, $file->getFileUri())];
+    }
+    return [];
+  }
+
+  /**
    * A component filter filled from a legacy reference (a webform, say).
    */
   private function checkFilter(string $title, array $spec, string $component, array $item, array $filters): array {
@@ -509,7 +614,7 @@ final class ContentVerifier {
     if ((string) $got !== (string) $first['target_id']) {
       return [sprintf('filter "%s" is %s; the legacy item picks %s.', $title, self::show($got), $first['target_id'])];
     }
-    $type = $first['target_type'] ?? NULL;
+    $type = $first['target_type'] ?? ($this->entityTypeManager->hasDefinition((string) ($item['fields'][$spec['from'] ?? '']['type'] ?? '')) ? $item['fields'][$spec['from']]['type'] : NULL);
     if ($type === NULL || !$this->entityTypeManager->getStorage($type)->load($first['target_id'])) {
       return [sprintf('filter "%s" picks %s, which does not exist.', $title, $first['target_id'])];
     }
@@ -594,6 +699,64 @@ final class ContentVerifier {
       }
     }
     return FALSE;
+  }
+
+  /**
+   * A prop's stored value (`{value}`, `{target_id}`) as text.
+   */
+  private static function storedValue(?array $stored, string $property = 'value'): string {
+    $value = $stored['value'] ?? NULL;
+    if (is_array($value)) {
+      $value = $value[$property] ?? $value['value'] ?? $value['target_id'] ?? NULL;
+    }
+    return is_scalar($value) ? (string) $value : '';
+  }
+
+  /**
+   * The value a `modifier` entry gives an item: its style option, else the
+   * entry's default, through its map. NULL when there is none.
+   */
+  private static function modifier(array $spec, array $item): ?string {
+    $value = $item['behavior']['modifiers'] ?? [];
+    foreach (explode('.', (string) ($spec['key'] ?? '')) as $part) {
+      $value = is_array($value) && array_key_exists($part, $value) ? $value[$part] : NULL;
+    }
+    if ($value === NULL || $value === '') {
+      $value = $spec['default'] ?? NULL;
+    }
+    if ($value === NULL || $value === '') {
+      return NULL;
+    }
+    $value = (string) $value;
+    if (isset($spec['map'])) {
+      $value = array_key_exists($value, $spec['map']) ? (string) $spec['map'][$value] : "unmapped:$value";
+    }
+    return $value;
+  }
+
+  /**
+   * Style options an item sets that no `modifier` entry reads or `ignore`
+   * lists (`_global.overlay`).
+   *
+   * @return list<string>
+   */
+  private static function unmappedModifiers(array $entry, array $modifiers): array {
+    // Deliberate omissions are listed under the entry's `ignore`, by key.
+    $read = array_map('strval', $entry['ignore'] ?? []);
+    foreach ($entry['props'] ?? [] as $spec) {
+      if (($spec['transform'] ?? NULL) === 'modifier') {
+        $read[] = (string) $spec['key'];
+      }
+    }
+    $unmapped = [];
+    foreach ($modifiers as $group => $options) {
+      foreach ((array) $options as $option => $value) {
+        if ($value !== NULL && $value !== '' && !in_array("$group.$option", $read, TRUE)) {
+          $unmapped[] = "$group.$option";
+        }
+      }
+    }
+    return $unmapped;
   }
 
   /**
