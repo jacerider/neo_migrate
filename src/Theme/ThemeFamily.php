@@ -26,4 +26,11 @@ final class ThemeFamily {
     return (bool) array_intersect([$theme->getName(), ...array_keys($theme->getBaseThemeExtensions())], self::NEO_BASES);
   }
 
+  /**
+   * Whether a theme is the Neo front theme or built on it.
+   */
+  public static function isNeoFront(ActiveTheme $theme): bool {
+    return in_array('neo_front', [$theme->getName(), ...array_keys($theme->getBaseThemeExtensions())], TRUE);
+  }
+
 }

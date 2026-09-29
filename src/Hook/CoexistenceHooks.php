@@ -13,8 +13,10 @@ use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Extension\ThemeHandlerInterface;
 use Drupal\Core\Hook\Attribute\Hook;
 use Drupal\Core\Hook\Order\Order;
+use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\Core\Serialization\Yaml;
 use Drupal\Core\Theme\ThemeManagerInterface;
+use Drupal\layout_builder\Entity\LayoutEntityDisplayInterface;
 use Drupal\neo_migrate\LegacyCatalog;
 use Drupal\neo_migrate\Theme\ThemeFamily;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -59,6 +61,8 @@ final class CoexistenceHooks {
     private readonly LegacyCatalog $catalog,
     #[Autowire(param: 'app.root')]
     private readonly string $appRoot,
+    #[Autowire(service: 'current_route_match')]
+    private readonly RouteMatchInterface $routeMatch,
   ) {}
 
   /**
@@ -96,13 +100,65 @@ final class CoexistenceHooks {
   }
 
   /**
+   * Lets a previewed Layout Builder page run full width, as Alchemist's do.
+   *
+   * Implements hook_preprocess_region__content(). neo_front boxes the content
+   * region in a container unless the page's display renders a component tree;
+   * a Layout Builder host's display renders its layout until cutover, even
+   * where entityViewAlter() swaps the tree in.
+   */
+  #[Hook('preprocess_region__content', order: Order::Last)]
+  public function preprocessRegionContent(array &$variables): void {
+    if ($this->previewsLayoutHost()) {
+      $variables['alchemist'] = TRUE;
+    }
+  }
+
+  /**
+   * Keeps a previewed Layout Builder page's title for screen readers only.
+   *
+   * Implements hook_preprocess_block(), as neo_alchemist does for its own
+   * pages: the components carry the visible title.
+   */
+  #[Hook('preprocess_block', order: Order::Last)]
+  public function preprocessBlock(array &$variables): void {
+    if (($variables['base_plugin_id'] ?? NULL) === 'page_title_block' && $this->previewsLayoutHost()) {
+      $variables['attributes']['class'][] = 'sr-only';
+    }
+  }
+
+  /**
+   * Whether this page shows a Layout Builder host's tree in its layout's place.
+   */
+  private function previewsLayoutHost(): bool {
+    $settings = $this->configFactory->get('neo_migrate.settings');
+    $tree = (string) $settings->get('coexistence.tree_field');
+    if ($tree === '' || $this->themeManager->getActiveTheme()->getName() !== $settings->get('preview.neo.front')) {
+      return FALSE;
+    }
+    $route = (string) $this->routeMatch->getRouteName();
+    if (!preg_match('/^entity\.([a-z_]+)\.canonical$/', $route, $matches)) {
+      return FALSE;
+    }
+    $entity = $this->routeMatch->getParameter($matches[1]);
+    if (!$entity instanceof FieldableEntityInterface || !$entity->hasField($tree)) {
+      return FALSE;
+    }
+    $display = \Drupal::service('entity_display.repository')->getViewDisplay($entity->getEntityTypeId(), $entity->bundle());
+    return $display instanceof LayoutEntityDisplayInterface && $display->isLayoutBuilderEnabled();
+  }
+
+  /**
    * Keeps each theme's elements to its own stack.
    *
    * Implements hook_element_info_alter(). Element info is built per theme, with
    * that theme active. In a legacy theme every input opts out of neo_tooltip
    * (`#tooltip: FALSE`, set by a process callback that runs before
    * neo_tooltip's), so descriptions stay where the legacy theme put them. In a
-   * Neo theme the page no longer carries exo_icon's global fonts.
+   * Neo theme the page no longer carries exo_icon's global fonts, and in the
+   * Neo front theme it is no longer wrapped in exo's page canvas (#exo-body),
+   * which pads itself by a displacement exo keeps in localStorage. The back
+   * theme keeps the canvas: exo's admin scripts (the list builder) expect it.
    */
   #[Hook('element_info_alter')]
   public function elementInfoAlter(array &$info): void {
@@ -111,6 +167,13 @@ final class CoexistenceHooks {
         $info['html']['#attached']['library'] = array_values(array_filter(
           $info['html']['#attached']['library'],
           static fn (string $library): bool => !str_starts_with($library, 'exo_icon/icon.'),
+        ));
+      }
+      if (isset($info['page']) && ThemeFamily::isNeoFront($this->themeManager->getActiveTheme())) {
+        unset($info['page']['#theme_wrappers']['exo']);
+        $info['page']['#pre_render'] = array_values(array_filter(
+          $info['page']['#pre_render'] ?? [],
+          static fn ($callback): bool => !(is_array($callback) && ($callback[0] ?? NULL) === 'Drupal\exo\ExoPageHandler'),
         ));
       }
       return;
