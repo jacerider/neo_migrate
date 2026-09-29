@@ -33,9 +33,10 @@ const DEFAULTS = {
 };
 
 /**
- * Loads migration/parity.yml (or the given file) from the site root.
+ * Loads migration/parity.yml (or the given file) from the site root; `urls`
+ * replaces its URL list.
  */
-export function loadConfig(file = 'migration/parity.yml') {
+export function loadConfig(file = 'migration/parity.yml', urls = undefined) {
   const path = resolve(process.cwd(), file);
   if (!existsSync(path)) {
     throw new Error(`No parity config at ${path}. Run from the site root, or pass --config.`);
@@ -46,7 +47,7 @@ export function loadConfig(file = 'migration/parity.yml') {
   config.root = process.cwd();
   config.file = path;
   config.outputDir = resolve(config.root, config.output);
-  config.urlsFile = resolve(config.root, config.urls);
+  config.urlsFile = resolve(config.root, urls ?? config.urls);
   config.targets = Object.fromEntries(Object.entries(site.targets ?? {}).map(([name, target]) => [name, normalizeTarget(name, target)]));
   return config;
 }

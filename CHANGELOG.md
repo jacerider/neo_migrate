@@ -11,6 +11,8 @@
   for screen readers only, as a real Alchemist page does (neo_front boxes the
   content region otherwise), and no longer sits in exo's page canvas
   (`#exo-body`, padded from a displacement exo keeps in localStorage).
+- Parity `capture --urls=<file>` captures another URL list, for unpublished
+  pages on a target that logs in.
 
 ## Phase 2 on exo sites: icons, bundle icons, site settings, tree field, metatags
 

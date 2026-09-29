@@ -26,6 +26,17 @@ Then the site-wide rich text and rhythm, which every text-bearing component shar
 
 Done when every content section of every converted page passes, or is a `warn` with a written reason in `migration/state.yml`.
 
+## What exo sites add
+
+Learned on the first exo_alchemist site (Wise); check each on the next.
+
+- **Page offsets.** exo pads the first component's wrapper (`.exo-component-first`, from medium up) and the last one's (`.exo-component-last`) to clear the header and footer art, with `!important`, replacing that wrapper's own padding. Rebuild it once in the front theme's `_utilities.css` on the section channels: the tree's first child gets `--spacing-component-t: calc(var(--spacing-component, 0px) + <offset>)`, the last `--spacing-component-b`. A component whose root carries its own padding reads the channel with its padding as the fallback (`pt-[var(--spacing-component-t,<padding>)]`), so the offset replaces it as legacy did.
+- **Margins inside wrappers.** exo wrappers are `display: flex` only on pages where some component has style options (exo attaches its property CSS then); elsewhere they are blocks, and a component's first margin collapses into the wrapper's. A page whose only component is plain can sit 32px higher on phones than the same component on a busier page.
+- **Colour options** become schemes: map each legacy colour to a neo_color scheme whose surface is that colour, creating a pallet and a colorized scheme (`colorize_offset: 0`) where none fits. Components paint `bg-default component-bg` on the root, so the painted section box matches the legacy wrapper's.
+- **Text formats.** Check each exo format's `allowed_html` renders: an escaped quote in a hand-added tag broke `filter_html` on the pilot's successor, which then stripped every tag. Legacy showed bare text; the migration kept the stored markup (a person's decision, in state.yml). A short-description format that showed bare text wants a plain paragraph style (the description's line height, paragraphs 1rem apart), not the rich-text prose.
+- **Forms** are exo_form's: styled per element, whatever the section colour. Set the legacy look on `<form>` itself (the scheme sets the form tokens on the section, and an element's own custom property wins), and re-declare the `--color-form-item-*` tokens there so the colour utilities resolve against it. The Neo preview logs in, so form pages compare against the logged-in legacy capture (`local-auth`): no captcha and prefilled defaults on both sides.
+- **Section selector.** A component whose markup closes the layout region early (a stray `</div>`) moves the components after it out of `.layout__region`; select top-level wrappers wherever they sit: `.node.full .exo-component-wrapper:not(.exo-component-wrapper .exo-component-wrapper)`.
+
 ## The mapping file and converter
 
 `drush neo-migrate:content [--id=1,2] [--dry-run] [--overwrite]` converts each host's current revision into its tree field, following `migration/neo_migrate.yml`:

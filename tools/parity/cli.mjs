@@ -10,6 +10,8 @@
  *
  * Options:
  *   --config=<file>     parity config (default migration/parity.yml)
+ *   --urls=<file>       URL list in place of the config's (unpublished pages,
+ *                       captured on a target that logs in)
  *   --only=/a,/b        capture only these paths
  *   --widths=375,1440   override the configured widths
  *   --list              compare: print every section's result, not just totals
@@ -26,6 +28,7 @@ const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     config: { type: 'string', default: 'migration/parity.yml' },
+    urls: { type: 'string' },
     target: { type: 'string' },
     label: { type: 'string' },
     only: { type: 'string' },
@@ -40,7 +43,7 @@ const { values, positionals } = parseArgs({
 
 const [command, ...args] = positionals;
 const usage = () => {
-  console.log('Usage:\n  cli.mjs capture --target=<name> --label=<label> [--only=/a,/b] [--widths=375,1440]\n  cli.mjs warm --target=<name> [--only=/a,/b] [--widths=375,1440]\n  cli.mjs compare <labelA> <labelB> [--list]\n  cli.mjs probe --target=<name> [--path=/] [--width=1440] [--depth=3] <selector>');
+  console.log('Usage:\n  cli.mjs capture --target=<name> --label=<label> [--only=/a,/b] [--widths=375,1440] [--urls=<file>]\n  cli.mjs warm --target=<name> [--only=/a,/b] [--widths=375,1440]\n  cli.mjs compare <labelA> <labelB> [--list]\n  cli.mjs probe --target=<name> [--path=/] [--width=1440] [--depth=3] <selector>');
 };
 
 try {
@@ -48,7 +51,7 @@ try {
     usage();
     process.exit(values.help ? 0 : 1);
   }
-  const config = loadConfig(values.config);
+  const config = loadConfig(values.config, values.urls);
   if (command === 'capture') {
     if (!values.target || !values.label) throw new Error('capture needs --target and --label.');
     const manifest = await capture(config, {

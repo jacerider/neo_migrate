@@ -6,7 +6,7 @@ The screenshot comparison that proves the public site unchanged. Lives in `web/m
 
 | Command | Does |
 | --- | --- |
-| `cli.mjs capture --target=<t> --label=<l> [--only=/a,/b] [--widths=375,1440]` | Screenshots every visual URL in `migration/urls.json` at every width; checks every status URL. Writes `.neo-migrate/captures/<l>/`. |
+| `cli.mjs capture --target=<t> --label=<l> [--only=/a,/b] [--widths=375,1440] [--urls=<file>]` | Screenshots every visual URL in `migration/urls.json` (or `--urls`) at every width; checks every status URL. Writes `.neo-migrate/captures/<l>/`. Unpublished pages go in their own list (`migration/urls.unpublished.json`), captured on a target that logs in: `local-auth` for the legacy side, `local-neo` for the Neo one. |
 | `cli.mjs compare <a> <b> [--list]` | Compares two captures. Writes `.neo-migrate/reports/<a>__<b>/index.html` and `summary.json`; `--list` also prints every section's result, height change and change in space above. |
 | `cli.mjs probe --target=<t> [--path=/] [--width=1440] [--depth=3] '<selector>'` | Prints unrounded boxes and key computed styles for the matching elements and their descendants. For the sub-pixel offsets a section diff points at, where the rounded boxes in `styles.json` look identical. |
 
