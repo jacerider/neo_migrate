@@ -33,6 +33,14 @@ The metatag defaults are shared by both themes, so the Neo head differs only aft
 
 Descriptions: neo_alchemist (with *Describe pages by their first rich text* on, the default) fills `[neo:description]` from the first stored rich-text prop of the tree, cut at 160 characters on a word — what paragraph_meta's smart description took from the first text paragraph, with spaces where legacy ran blocks together. Neo describes the **front page** by the site slogan before any module is asked; with an empty slogan the front page has no description. Record every other head difference (titles, images, theme-color) for the cutover.
 
+**On an exo site** step 2 does two more cutover steps before capturing, or the Neo side loses every description and image: `drush neo-migrate:favicon` (the image fallback is the largest favicon), and `field_full` placed with the `neo_component_tree` formatter on each host bundle's default view display (neo_alchemist finds the tree through that display, which Layout Builder holds until the cutover; setting `content.field_full` in the display's config is enough for the trial). Then expect:
+
+- **og:title**: exo's smart title was the page's own title tag (the node's metatag title, else `label | site name`); `[neo:title]` is the bare page title, and the site name on the front page. `[current-page:metatag:title]` restores it.
+- **og:description**: exo read the node's metatag description before the first text. `[current-page:metatag:description]` restores it when the `description` tag itself falls back to `[neo:description]`; a node default of `[node:summary]` is empty on Layout Builder pages.
+- **og:image**: `meta` (cropped to 1200×630) becomes `neo_social` (fitted within it, in the source format), so width and height give the real size. The fallback is the largest favicon instead of real_favicon's apple-touch-icon, and the front page always shows it, where exo used the page's first photo.
+
+On the first exo site the fix above was trialled and every node page's og:title matched; each difference left is a decision for the person.
+
 ## 5. The editor
 
 Open the editor **with the preview on** (`/neo-migrate/preview/neo`). Without it the editor canvas renders the components in the legacy default theme, unstyled. The editor route is `/node/<id>/alchemist`; one component's form is `/node/<id>/alchemist/<key>/edit/<uuid>`, where `<key>` is the tree field's name without `field_`. Script a pass over every editor page and every component form for HTTP errors, PHP messages and console errors before a person starts. A one-time login link works once: log in once per browser session, not once per page. Legacy form scripts (ux_form) can still attach in the admin theme on pages that embed a webform and throw on removed jQuery `once()`; they go when the legacy modules are uninstalled.
