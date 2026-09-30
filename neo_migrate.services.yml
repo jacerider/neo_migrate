@@ -114,7 +114,7 @@ services:
   # unset one; optional like neo_icon above.
   neo_migrate.derivative_writer:
     class: Drupal\neo_migrate\Image\DerivativeWriter
-    arguments: ['@entity_type.manager']
+    arguments: ['@entity_type.manager', '@entity_field.manager', '@module_handler', '@config.factory']
 
   neo_migrate.content_verifier:
     class: Drupal\neo_migrate\Verify\ContentVerifier

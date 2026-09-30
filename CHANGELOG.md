@@ -5,6 +5,9 @@
 - `drush neo-migrate:derivatives <url>...` writes the image style derivatives a page references
   (neo_image's AVIF styles and ordinary image styles), for the ones a web request cannot convert:
   on Pantheon the request converting a very large photo to AVIF can die part way.
+- `--share-images` writes every page's share image (neo_social) first: neo builds it while
+  rendering the page's head, so on Pantheon a photo too large for the request took the page itself
+  down (a 502). Run it right after the cutover's config import.
 - `cli.mjs capture --only` (or `--widths`) into a label that exists retakes those page views and
   keeps the rest; it used to replace the label's manifest with just them.
 - `cli.mjs warm` counts an image answered as a page ("Image generation in progress") as failed,

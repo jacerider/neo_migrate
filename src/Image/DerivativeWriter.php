@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Drupal\neo_migrate\Image;
 
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Entity\ContentEntityInterface;
+use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\image\ImageStyleInterface;
 use Drupal\neo_image\NeoImageStyle;
 
@@ -15,12 +19,61 @@ use Drupal\neo_image\NeoImageStyle;
  * part way (a 502, then "Image generation in progress" while its lock lasts),
  * while the same conversion takes seconds from the command line. The warm step
  * lists the derivatives that still fail; this writes them.
+ *
+ * A page's share image is worse: neo builds its neo_social derivative while
+ * rendering the page's head, so a photo too large for the request takes the
+ * page itself down. shareImages() writes those before visitors arrive.
  */
 final class DerivativeWriter {
 
   public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
+    private readonly EntityFieldManagerInterface $entityFieldManager,
+    private readonly ModuleHandlerInterface $moduleHandler,
+    private readonly ConfigFactoryInterface $configFactory,
   ) {}
+
+  /**
+   * Writes the share image derivative of every page with a component tree.
+   *
+   * The image is found as neo's [neo:image] token finds it (the
+   * neo_token_image alter hook: the tree's first image, else the largest
+   * favicon), in the neo_social style neo shares it in.
+   *
+   * @return array<string, string>
+   *   The result per derivative URI: written, present or failed.
+   */
+  public function shareImages(): array {
+    $style = $this->entityTypeManager->getStorage('image_style')->load('neo_social');
+    $field = (string) $this->configFactory->get('neo_migrate.settings')->get('coexistence.tree_field');
+    if (!$style instanceof ImageStyleInterface || $field === '') {
+      return [];
+    }
+    $results = [];
+    foreach ($this->entityFieldManager->getFieldMap() as $entityTypeId => $fields) {
+      if (!isset($fields[$field])) {
+        continue;
+      }
+      $storage = $this->entityTypeManager->getStorage($entityTypeId);
+      $ids = $storage->getQuery()->accessCheck(FALSE)->exists($field)->execute();
+      foreach ($storage->loadMultiple($ids) as $entity) {
+        if (!$entity instanceof ContentEntityInterface) {
+          continue;
+        }
+        $uri = NULL;
+        $params = [];
+        $this->moduleHandler->alter('neo_token_image', $uri, $params, $entity);
+        if (!$uri || !file_exists($uri) || !$style->supportsUri($uri)) {
+          continue;
+        }
+        $derivative = $style->buildUri($uri);
+        if (!isset($results[$derivative])) {
+          $results[$derivative] = file_exists($derivative) ? 'present' : ($style->createDerivative($uri, $derivative) ? 'written' : 'failed');
+        }
+      }
+    }
+    return $results;
+  }
 
   /**
    * Writes the derivative a page references.
