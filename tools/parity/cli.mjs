@@ -60,8 +60,9 @@ try {
       only: values.only?.split(',').map((p) => p.trim()),
       widths: values.widths?.split(',').map(Number),
     });
-    const errors = manifest.pages.filter((p) => p.error);
-    console.log(`\nCaptured ${manifest.pages.length - errors.length} page views of ${values.target} as "${values.label}"${errors.length ? `, ${errors.length} failed` : ''}.`);
+    const errors = manifest.taken.filter((p) => p.error);
+    const kept = manifest.pages.length - manifest.taken.length;
+    console.log(`\nCaptured ${manifest.taken.length - errors.length} page views of ${values.target} as "${values.label}"${errors.length ? `, ${errors.length} failed` : ''}${kept ? `; kept its other ${kept}` : ''}.`);
     process.exit(errors.length ? 2 : 0);
   }
   if (command === 'warm') {

@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium, request } from 'playwright';
 import { loadUrls, slug } from './config.mjs';
@@ -38,7 +38,11 @@ export async function capture(config, { target: name, label, only, widths }) {
 
   // Status codes are checked anonymously on every target: a session changes
   // what a page looks like, not whether it exists.
-  const status = await checkStatus(base, urls.filter((url) => url.check === 'status'));
+  // A partial capture (--only, --widths) into a label that already exists
+  // replaces what it captured again and keeps the rest.
+  const previous = only || widths ? readPrevious(dir, name) : null;
+  const checked = await checkStatus(base, urls.filter((url) => url.check === 'status'));
+  const status = previous ? [...previous.status.filter((row) => !checked.some((c) => c.path === row.path)), ...checked] : checked;
   writeFileSync(join(dir, 'status.json'), JSON.stringify(status, null, 2));
 
   const browser = await chromium.launch();
@@ -65,9 +69,34 @@ export async function capture(config, { target: name, label, only, widths }) {
   await Promise.all(Array.from({ length: config.concurrency }, worker));
   await browser.close();
 
-  const manifest = { label, target: name, base, preview: target.preview ?? null, captured: new Date().toISOString(), widths: widths ?? config.widths, pages: results };
+  const pages = previous ? [...previous.pages.filter((page) => !results.some((r) => r.path === page.path && r.width === page.width)), ...results] : results;
+  const manifest = { label, target: name, base, preview: target.preview ?? null, captured: new Date().toISOString(), widths: previous ? [...new Set([...previous.widths, ...(widths ?? config.widths)])].sort((a, b) => a - b) : widths ?? config.widths, pages };
   writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2));
-  return manifest;
+  // What this run took, beside the label's merged manifest.
+  return { ...manifest, taken: results };
+}
+
+/**
+ * The manifest and status rows a label already holds from the same target.
+ *
+ * @return {{pages: Array, widths: Array<number>, status: Array}|null}
+ *   Null when the label is new or was captured from another target.
+ */
+function readPrevious(dir, target) {
+  const file = join(dir, 'manifest.json');
+  if (!existsSync(file)) {
+    return null;
+  }
+  const manifest = JSON.parse(readFileSync(file, 'utf8'));
+  if (manifest.target !== target) {
+    throw new Error(`Capture "${manifest.label}" was taken from ${manifest.target}; capture ${target} under another label.`);
+  }
+  const statusFile = join(dir, 'status.json');
+  return {
+    pages: manifest.pages ?? [],
+    widths: manifest.widths ?? [],
+    status: existsSync(statusFile) ? JSON.parse(readFileSync(statusFile, 'utf8')) : [],
+  };
 }
 
 /**
