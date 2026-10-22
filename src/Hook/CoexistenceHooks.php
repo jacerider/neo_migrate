@@ -159,6 +159,8 @@ final class CoexistenceHooks {
    * Neo front theme it is no longer wrapped in exo's page canvas (#exo-body),
    * which pads itself by a displacement exo keeps in localStorage. The back
    * theme keeps the canvas: exo's admin scripts (the list builder) expect it.
+   * Its padding goes (pageAttachmentsAlter()): back already moves the body
+   * clear of neo_toolbar, so the padding doubled the gap beside and above it.
    */
   #[Hook('element_info_alter')]
   public function elementInfoAlter(array &$info): void {
@@ -282,7 +284,19 @@ final class CoexistenceHooks {
    */
   #[Hook('page_attachments_alter')]
   public function pageAttachmentsAlter(array &$attachments): void {
-    if (empty($attachments['#attached']['library']) || ThemeFamily::isNeo($this->themeManager->getActiveTheme())) {
+    $theme = $this->themeManager->getActiveTheme();
+    if (ThemeFamily::isNeo($theme) && !ThemeFamily::isNeoFront($theme) && $this->moduleHandler->moduleExists('exo')) {
+      // exo pads its canvas by the toolbar's displacement, inline and from
+      // script; the back theme's body is already displaced by it.
+      $attachments['#attached']['html_head'][] = [
+        [
+          '#tag' => 'style',
+          '#value' => '#exo-body{padding:0!important}',
+        ],
+        'neo_migrate_exo_canvas',
+      ];
+    }
+    if (empty($attachments['#attached']['library']) || ThemeFamily::isNeo($theme)) {
       return;
     }
     $attachments['#attached']['library'] = array_values(array_filter(
