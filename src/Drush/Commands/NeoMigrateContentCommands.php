@@ -12,6 +12,7 @@ use Drupal\neo_migrate\Image\DerivativeWriter;
 use Drupal\neo_migrate\Importer\IconFieldImporter;
 use Drupal\neo_migrate\Importer\SiteSettingsImporter;
 use Drupal\neo_migrate\Source\SourceAdapterInterface;
+use Drupal\neo_migrate\Teardown\ExoTeardown;
 use Drupal\neo_migrate\Verify\ContentVerifier;
 use Drupal\neo_migrate\Workspace;
 use Drupal\neo_migrate\Writer\ComponentTreeWriter;
@@ -52,6 +53,8 @@ final class NeoMigrateContentCommands extends DrushCommands {
     private readonly ContentVerifier $verifier,
     #[Autowire(service: 'neo_migrate.derivative_writer')]
     private readonly DerivativeWriter $derivatives,
+    #[Autowire(service: 'neo_migrate.exo_teardown')]
+    private readonly ExoTeardown $exoTeardown,
   ) {
     parent::__construct();
   }
@@ -252,6 +255,30 @@ final class NeoMigrateContentCommands extends DrushCommands {
       return self::EXIT_FAILURE;
     }
     $this->io()->success(sprintf('%d derivatives on disk.', count($rows)));
+    return self::EXIT_SUCCESS;
+  }
+
+  /**
+   * Clears an exo_alchemist site's legacy content so its modules can go.
+   *
+   * Run after neo-migrate:content and neo-migrate:verify (verify reads the
+   * legacy trees this deletes) and before uninstalling any legacy module:
+   * turns Layout Builder off on the tree hosts' displays and drops exo's and
+   * Layout Builder's settings from them, deletes the exo blocks, their types
+   * and exo's site settings, and purges the deleted fields. Not reversible.
+   */
+  #[CLI\Command(name: 'neo-migrate:teardown', aliases: ['nmtd'])]
+  #[CLI\Option(name: 'dry-run', description: 'Report what would happen without changing anything.')]
+  #[CLI\Usage(name: 'drush neo-migrate:teardown', description: 'At the cutover, after verify and before the legacy modules are uninstalled.')]
+  public function teardown(array $options = ['dry-run' => FALSE]): int {
+    $rows = $this->exoTeardown->run((bool) $options['dry-run']);
+    $this->io()->table(['Step', 'Result'], $rows);
+    $pending = array_filter($rows, fn (array $row): bool => str_contains($row[1], 'still pending'));
+    if ($pending) {
+      $this->io()->error('Deleted fields are still waiting to be purged; run the command again.');
+      return self::EXIT_FAILURE;
+    }
+    $this->io()->success($options['dry-run'] ? 'Dry run: nothing changed.' : 'Legacy content cleared; the legacy modules can be uninstalled.');
     return self::EXIT_SUCCESS;
   }
 

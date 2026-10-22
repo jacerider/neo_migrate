@@ -1,5 +1,16 @@
 # Changelog
 
+## neo-migrate:teardown clears an exo site's legacy content
+
+- `drush neo-migrate:teardown [--dry-run]` turns Layout Builder off on the tree hosts' displays
+  and strips exo_alchemist's and Layout Builder's settings from them, deletes the exo blocks, their
+  types and exo's site settings, and purges the deleted fields, so the exo suite, Layout Builder and
+  the legacy themes can be uninstalled.
+- Without it uninstalling exo_alchemist deleted the host displays, and purging the Layout Builder
+  overrides field hit a core bug ("Field layout_builder__layout is unknown"); the command empties
+  that field's deleted rows first.
+- The back theme no longer shows a second gap beside and above neo_toolbar while exo is installed.
+
 ## neo-migrate:derivatives writes image derivatives from the command line
 
 - `drush neo-migrate:derivatives <url>...` writes the image style derivatives a page references
