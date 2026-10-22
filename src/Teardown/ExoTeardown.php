@@ -6,10 +6,12 @@ namespace Drupal\neo_migrate\Teardown;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
+use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Field\DeletedFieldsRepositoryInterface;
 use Drupal\Core\Entity\Sql\SqlEntityStorageInterface;
 use Drupal\layout_builder\Entity\LayoutEntityDisplayInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Clears an exo_alchemist site's legacy content so its modules can go.
@@ -25,14 +27,20 @@ use Drupal\layout_builder\Entity\LayoutEntityDisplayInterface;
  * - The Layout Builder overrides field, once Layout Builder is off, cannot be
  *   purged: core's LayoutSectionItemList asks its deleted field for the
  *   entity and throws ("Field layout_builder__layout is unknown").
+ * - exo_alchemist's own delete hooks clean up after a deleted component: the
+ *   media and files it created for a component's default content are
+ *   deleted with the block. The converted trees use those same media, so the
+ *   blocks are deleted with its generator switched off.
  */
 final class ExoTeardown {
 
   public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
+    private readonly EntityFieldManagerInterface $entityFieldManager,
     private readonly ConfigFactoryInterface $configFactory,
     private readonly DeletedFieldsRepositoryInterface $deletedFields,
     private readonly Connection $database,
+    private readonly ContainerInterface $container,
   ) {}
 
   /**
@@ -66,12 +74,18 @@ final class ExoTeardown {
     $rows = [];
     foreach ($this->entityTypeManager->getStorage('entity_view_display')->loadMultiple() as $display) {
       $legacy = array_intersect($display->getThirdPartyProviders(), ['layout_builder', 'exo_alchemist']);
-      if (!$legacy || !$display->getComponent($field)) {
+      $hosts = $this->entityFieldManager->getFieldDefinitions($display->getTargetEntityTypeId(), $display->getTargetBundle());
+      if (!$legacy || !isset($hosts[$field])) {
         continue;
       }
       if (!$dryRun) {
         if ($display instanceof LayoutEntityDisplayInterface && $display->isLayoutBuilderEnabled()) {
           $display->disableLayoutBuilder();
+        }
+        // The default display renders the tree from now on, whether or not
+        // the cutover's config has been imported yet.
+        if ($display->getMode() === 'default' && !$display->getComponent($field)) {
+          $display->setComponent($field, ['type' => 'neo_component_tree', 'label' => 'hidden', 'weight' => 0]);
         }
         foreach ($legacy as $provider) {
           foreach (array_keys($display->getThirdPartySettings($provider)) as $key) {
@@ -95,6 +109,7 @@ final class ExoTeardown {
       return 'none (no such entity type)';
     }
     $storage = $this->entityTypeManager->getStorage($entityTypeId);
+    $this->silenceExoGenerator();
     $query = $storage->getQuery()->accessCheck(FALSE);
     if ($key) {
       $query->condition($key, $prefix, 'STARTS_WITH');
@@ -106,6 +121,30 @@ final class ExoTeardown {
       }
     }
     return sprintf('%d %s', count($ids), $dryRun ? 'to delete' : 'deleted');
+  }
+
+  /**
+   * Switches off exo_alchemist's generator for the rest of this request.
+   *
+   * The entity hooks of exo_alchemist call it on every delete, and it deletes
+   * the media (and their files) a component created for its default content;
+   * the converted trees still use them. A stand-in that does nothing takes
+   * its place in this process only.
+   */
+  private function silenceExoGenerator(): void {
+    if (!$this->container->has('exo_alchemist.generator')) {
+      return;
+    }
+    $this->container->set('exo_alchemist.generator', new class() {
+
+      /**
+       * Accepts any call the hooks make, and does nothing.
+       */
+      public function __call(string $name, array $arguments): static {
+        return $this;
+      }
+
+    });
   }
 
   /**

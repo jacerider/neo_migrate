@@ -118,7 +118,7 @@ services:
 
   neo_migrate.exo_teardown:
     class: Drupal\neo_migrate\Teardown\ExoTeardown
-    arguments: ['@entity_type.manager', '@config.factory', '@entity_field.deleted_fields_repository', '@database']
+    arguments: ['@entity_type.manager', '@entity_field.manager', '@config.factory', '@entity_field.deleted_fields_repository', '@database', '@service_container']
 
   neo_migrate.content_verifier:
     class: Drupal\neo_migrate\Verify\ContentVerifier
